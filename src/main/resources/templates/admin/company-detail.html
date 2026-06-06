@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Заявка контроллера')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: nav}"></div>
+<main class="container">
+    <p><a th:href="@{/admin/companies}">&larr; К списку заявок</a></p>
+    <h1>Заявка контроллера</h1>
+    <p th:if="${message}" class="alert success" th:text="${message}"></p>
+    <p th:if="${error}" class="alert error" th:text="${error}"></p>
+
+    <section class="card" style="margin-bottom:1.5rem">
+        <h2 style="margin-top:0">Контроллер</h2>
+        <dl>
+            <dt>ФИО</dt>
+            <dd th:text="${view.user.fullName}">—</dd>
+            <dt>Телефон</dt>
+            <dd th:text="${view.user.phone}">—</dd>
+            <dt>Город</dt>
+            <dd th:text="${view.cityName}">—</dd>
+            <dt>Подтверждён</dt>
+            <dd>
+                <span th:if="${view.user.approved}" class="badge ok">Да</span>
+                <span th:unless="${view.user.approved}" class="badge warn">Нет</span>
+            </dd>
+        </dl>
+    </section>
+
+    <section class="card" style="margin-bottom:1.5rem">
+        <h2 style="margin-top:0">Данные компании</h2>
+        <dl>
+            <dt>Название</dt>
+            <dd th:text="${view.company.name}">—</dd>
+            <dt>БИН</dt>
+            <dd th:text="${view.company.bin}">—</dd>
+            <dt>Юридический адрес</dt>
+            <dd th:text="${view.company.legalAddress}">—</dd>
+            <dt>Год основания</dt>
+            <dd th:text="${view.company.foundedYear}">—</dd>
+            <dt>Статус</dt>
+            <dd th:text="${view.company.status.value}">—</dd>
+            <dt th:if="${view.company.rejectionReason}">Причина отклонения</dt>
+            <dd th:if="${view.company.rejectionReason}" th:text="${view.company.rejectionReason}">—</dd>
+            <dt th:if="${view.company.submittedAt}">Дата отправки</dt>
+            <dd th:if="${view.company.submittedAt}" th:text="${view.company.submittedAt}">—</dd>
+        </dl>
+    </section>
+
+    <section class="card" style="margin-bottom:1.5rem">
+        <h2 style="margin-top:0">Документы</h2>
+        <ul style="list-style:none;padding:0">
+            <li style="margin-bottom:.75rem">
+                <strong>Свидетельство о регистрации:</strong>
+                <span th:if="${view.company.registrationCertificateUrl == null}"> не загружено</span>
+                <span th:if="${view.company.registrationCertificateUrl != null}">
+                    <a th:href="@{/admin/companies/{id}/files/registration-certificate(id=${view.company.id})}"
+                       target="_blank" class="btn small">Открыть</a>
+                    <a th:href="@{/admin/companies/{id}/files/registration-certificate(id=${view.company.id}, disposition='attachment')}"
+                       class="btn small">Скачать</a>
+                </span>
+            </li>
+            <li>
+                <strong>Портфолио работ:</strong>
+                <span th:if="${view.company.portfolioUrl == null}"> не загружено</span>
+                <span th:if="${view.company.portfolioUrl != null}">
+                    <a th:href="@{/admin/companies/{id}/files/portfolio(id=${view.company.id})}"
+                       target="_blank" class="btn small">Открыть</a>
+                    <a th:href="@{/admin/companies/{id}/files/portfolio(id=${view.company.id}, disposition='attachment')}"
+                       class="btn small">Скачать</a>
+                </span>
+            </li>
+        </ul>
+    </section>
+
+    <section th:if="${view.company.status.name() == 'PENDING_REVIEW'}" class="card">
+        <h2 style="margin-top:0">Модерация</h2>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
+            <form th:action="@{/admin/companies/{id}/approve(id=${view.company.id})}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <button type="submit" class="btn primary"
+                        onclick="return confirm('Одобрить заявку контроллера?');">
+                    Одобрить
+                </button>
+            </form>
+
+            <form th:action="@{/admin/companies/{id}/reject(id=${view.company.id})}" method="post"
+                  style="flex:1;min-width:280px">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <label>Причина отклонения</label><br/>
+                <textarea name="rejectionReason" rows="3" required
+                          placeholder="Укажите причину отклонения для контроллера"
+                          style="width:100%;padding:.5rem;box-sizing:border-box;margin:.5rem 0"></textarea>
+                <button type="submit" class="btn danger"
+                        onclick="return confirm('Отклонить заявку?');">
+                    Отклонить
+                </button>
+            </form>
+        </div>
+    </section>
+</main>
+</body>
+</html>

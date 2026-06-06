@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Отметка')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: nav}"></div>
+<main class="container">
+    <p><a th:href="@{/admin/marks}">&larr; К списку</a></p>
+    <p th:if="${message}" class="alert success" th:text="${message}"></p>
+    <h1 th:text="${mark.title}">Заголовок</h1>
+
+    <!-- Быстрые действия для новых заявок -->
+    <div th:if="${mark.status?.value == 'new'}"
+         style="background:#fff8e1;border:1px solid #ff9800;border-radius:8px;padding:1rem;margin-bottom:1.5rem;display:flex;gap:1rem;align-items:center">
+        <strong>🔔 Новая заявка — ожидает вашего решения</strong>
+        <form th:action="@{/admin/marks/{id}/status(id=${mark.id})}" method="post" style="display:inline">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" name="status" value="confirmed"/>
+            <button type="submit" style="background:#4caf50;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:1rem">
+                ✓ Принять — появится на карте
+            </button>
+        </form>
+        <form th:action="@{/admin/marks/{id}/status(id=${mark.id})}" method="post" style="display:inline">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" name="status" value="rejected"/>
+            <button type="submit" style="background:#f44336;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:1rem"
+                    onclick="return confirm('Отклонить заявку?')">
+                ✗ Отклонить
+            </button>
+        </form>
+    </div>
+    <!-- Фотографии -->
+    <div th:if="${!#lists.isEmpty(images)}" style="margin-bottom:1.5rem">
+        <h2>Фотографии</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:12px">
+            <a th:each="img : ${images}"
+               th:href="${img}" target="_blank"
+               style="display:block">
+                <img th:src="${img}"
+                     style="width:220px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #ddd;cursor:pointer"
+                     onerror="this.style.display='none'"/>
+            </a>
+        </div>
+    </div>
+    <p th:if="${#lists.isEmpty(images)}" style="color:#888;margin-bottom:1.5rem">Фотографии не прикреплены</p>
+
+    <div class="detail-grid">
+        <section class="card">
+            <h2>Информация</h2>
+            <dl>
+                <dt>ID</dt><dd th:text="${mark.id}"></dd>
+                <dt>Статус</dt><dd><span class="badge" th:text="${mark.status?.value}"></span></dd>
+                <dt>Адрес</dt><dd th:text="${mark.address}"></dd>
+                <dt>Описание</dt><dd th:text="${mark.description}"></dd>
+                <dt>Тип</dt><dd th:text="${mark.type}"></dd>
+                <dt>Серьёзность</dt>
+                <dd>
+                    <span th:switch="${mark.severity}">
+                        <span th:case="'critical'" style="color:#d32f2f;font-weight:bold">🔴 Критический</span>
+                        <span th:case="'high'"     style="color:#e53935;font-weight:bold">🟠 Высокий</span>
+                        <span th:case="'medium'"   style="color:#f57c00;font-weight:bold">🟡 Средний</span>
+                        <span th:case="'low'"      style="color:#388e3c;font-weight:bold">🟢 Низкий</span>
+                        <span th:case="*"          th:text="${mark.severity} ?: '—'"></span>
+                    </span>
+                </dd>
+                <dt>Координаты</dt>
+                <dd th:text="|${mark.lat}, ${mark.lng}|"></dd>
+                <dt>Автор</dt><dd th:text="${mark.author}"></dd>
+                <dt>Лайки</dt><dd th:text="${mark.likes}"></dd>
+                <dt>Комментарии</dt><dd th:text="${mark.commentsCount}"></dd>
+                <dt>Заметка админа</dt><dd th:text="${mark.adminNote} ?: '—'"></dd>
+            </dl>
+        </section>
+        <section class="card">
+            <h2>Модерация</h2>
+            <form th:action="@{/admin/marks/{id}/status(id=${mark.id})}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <label>Новый статус</label>
+                <select name="status" required>
+                    <option th:each="s : ${T(kz.citydrive.admin.domain.MarkStatus).values()}"
+                            th:value="${s.value}"
+                            th:text="${s.value}"
+                            th:selected="${mark.status == s}"></option>
+                </select>
+                <label>Контролёр</label>
+                <select name="assignedControllerId">
+                    <option value="">— не назначен —</option>
+                    <option th:each="c : ${controllers}"
+                            th:value="${c.id}"
+                            th:text="${c.fullName + ' (' + c.phone + ')'}"
+                            th:selected="${mark.assignedControllerId == c.id}"></option>
+                </select>
+                <label>Заметка админа</label>
+                <textarea name="adminNote" rows="3" th:text="${mark.adminNote}"></textarea>
+                <button type="submit" class="btn primary">Сохранить</button>
+            </form>
+        </section>
+    </div>
+
+    <section class="card" style="margin-top:1.5rem">
+        <h2>👍 Кто лайкнул (<span th:text="${likesList != null ? #lists.size(likesList) : 0}">0</span>)</h2>
+        <p th:if="${likesList == null or #lists.isEmpty(likesList)}" style="color:#64748b;margin:0">Пока никто не поставил лайк</p>
+        <table th:if="${likesList != null and !#lists.isEmpty(likesList)}" class="data-table">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>ID пользователя</th>
+                <th>Имя</th>
+                <th>Телефон</th>
+                <th>Когда</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="like, stat : ${likesList}">
+                <td th:text="${stat.count}">1</td>
+                <td th:text="${like.userId}">99</td>
+                <td th:text="${like.author}">User</td>
+                <td th:text="${like.phone}">+7700...</td>
+                <td th:text="${like.createdAtText}">01.01.2026</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card" style="margin-top:1.5rem">
+        <h2>💬 Комментарии (<span th:text="${#lists.isEmpty(comments) ? 0 : #lists.size(comments)}">0</span>)</h2>
+        <p th:if="${#lists.isEmpty(comments)}" style="color:#64748b;margin:0">Комментариев пока нет</p>
+        <table th:if="${!#lists.isEmpty(comments)}" class="data-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Автор</th>
+                <th>Телефон</th>
+                <th>Текст</th>
+                <th>Дата</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="c : ${comments}">
+                <td th:text="${c.id}">1</td>
+                <td th:text="${c.author}">User</td>
+                <td th:text="${c.authorPhone}">+7700...</td>
+                <td style="max-width:420px;white-space:pre-wrap;word-break:break-word" th:text="${c.text}">текст</td>
+                <td th:text="${c.createdAtText}">01.01.2026</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

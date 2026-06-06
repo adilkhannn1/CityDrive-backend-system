@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Заявки контроллеров')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: nav}"></div>
+<main class="container">
+    <h1>Заявки контроллеров</h1>
+    <p style="color:#64748b;margin-top:-.5rem">
+        Данные компании и документы из регистрации контроллера в приложении
+    </p>
+    <p th:if="${message}" class="alert success" th:text="${message}"></p>
+    <p th:if="${error}" class="alert error" th:text="${error}"></p>
+
+    <table class="data-table">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Контроллер</th>
+            <th>Телефон</th>
+            <th>Город</th>
+            <th>Компания</th>
+            <th>БИН</th>
+            <th>Статус</th>
+            <th>Действия</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="row : ${applications}">
+            <td th:text="${row.company.id}">1</td>
+            <td th:text="${row.user.fullName}">ФИО</td>
+            <td th:text="${row.user.phone}">+7...</td>
+            <td th:text="${row.cityName}">Алматы</td>
+            <td th:text="${row.company.name}">ТОО ...</td>
+            <td th:text="${row.company.bin}">180540012345</td>
+            <td>
+                <span th:switch="${row.company.status.name()}">
+                    <span th:case="'DRAFT'" class="badge">Черновик</span>
+                    <span th:case="'PENDING_REVIEW'" class="badge warn">На рассмотрении</span>
+                    <span th:case="'APPROVED'" class="badge ok">Одобрено</span>
+                    <span th:case="'REJECTED'" class="badge danger">Отклонено</span>
+                </span>
+            </td>
+            <td>
+                <a th:href="@{/admin/companies/{id}(id=${row.company.id})}" class="btn small">Подробнее</a>
+            </td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(applications)}">
+            <td colspan="8" style="text-align:center;color:#888">Заявок пока нет</td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>

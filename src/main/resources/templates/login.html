@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Вход — City Drive Admin')}"></head>
+<body class="login-page">
+<div class="login-card">
+    <h1>City Drive Admin</h1>
+    <p class="subtitle">Вход для администратора</p>
+    <p th:if="${error}" class="alert error" th:text="${error}"></p>
+    <p th:if="${message}" class="alert success" th:text="${message}"></p>
+    <form th:action="@{/login}" method="post">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        <label>Телефон</label>
+        <input type="text" name="phone" placeholder="+77000000000" required autofocus/>
+        <label>Пароль</label>
+        <input type="password" name="password" required/>
+        <button type="submit" class="btn primary">Войти</button>
+    </form>
+    <p class="hint">Seed: +77000000000 / admin123</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Город')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: nav}"></div>
+<main class="container">
+    <p><a th:href="@{/admin/cities}">&larr; К списку</a></p>
+    <h1 th:text="${isNew} ? 'Добавить город' : 'Редактировать город'">Город</h1>
+    <form th:action="${isNew} ? @{/admin/cities/new} : @{/admin/cities/{id}/edit(id=${cityId})}"
+          method="post" style="max-width:700px">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+        <div style="margin-bottom:1rem">
+            <label>Название *</label><br/>
+            <input type="text" name="name" th:value="${city.name}" required
+                   placeholder="Алматы"
+                   style="width:100%;padding:.5rem;box-sizing:border-box"/>
+        </div>
+
+        <div style="margin-bottom:1rem">
+            <label>Порядок сортировки</label><br/>
+            <input type="number" name="sortOrder" th:value="${city.sortOrder}" min="1"
+                   style="width:120px;padding:.5rem;box-sizing:border-box"/>
+        </div>
+
+        <div style="margin-bottom:1.5rem">
+            <label>
+                <input type="checkbox" name="active" value="true" th:checked="${city.active}"/>
+                Активен (виден в приложении)
+            </label>
+        </div>
+
+        <button type="submit" class="btn primary">Сохранить</button>
+        &nbsp;
+        <a th:href="@{/admin/cities}">Отмена</a>
+    </form>
+</main>
+</body>
+</html>

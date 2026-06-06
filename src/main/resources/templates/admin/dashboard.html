@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Дашборд')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: nav}"></div>
+<main class="container">
+    <h1>Дашборд</h1>
+
+    <!-- Блок ожидающих проверки — выделен -->
+    <a th:href="@{/admin/marks(status='new')}" style="text-decoration:none">
+        <div class="stat-card" th:style="${stats['new'] > 0} ? 'border:2px solid #e53935;background:#fff5f5' : ''">
+            <span class="stat-label" style="font-weight:bold">🔔 Ожидают проверки</span>
+            <span class="stat-value" th:text="${stats['new']}"
+                  th:style="${stats['new'] > 0} ? 'color:#e53935' : ''">0</span>
+        </div>
+    </a>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-label">Всего отметок</span>
+            <span class="stat-value" th:text="${stats['total']}">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">На рассмотрении</span>
+            <span class="stat-value" th:text="${stats['pending']}">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Подтверждены</span>
+            <span class="stat-value" th:text="${stats['confirmed']}">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">В работе</span>
+            <span class="stat-value" th:text="${stats['in_progress']}">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Исправлено</span>
+            <span class="stat-value" th:text="${stats['fixed']}">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Отклонено</span>
+            <span class="stat-value" th:text="${stats['rejected']}">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Пользователей</span>
+            <span class="stat-value" th:text="${userCount}">0</span>
+        </div>
+    </div>
+
+    <p class="actions">
+        <a class="btn primary" th:href="@{/admin/marks(status='new')}">Проверить заявки</a>
+        <a class="btn" th:href="@{/admin/marks}">Все отметки</a>
+    </p>
+</main>
+</body>
+</html>

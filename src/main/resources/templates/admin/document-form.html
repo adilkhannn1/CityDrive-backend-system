@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Документ')}"></head>
+<body>
+<div th:replace="~{fragments/layout :: nav}"></div>
+<main class="container">
+    <p><a th:href="@{/admin/documents}">&larr; К списку</a></p>
+    <h1 th:text="${isNew} ? 'Добавить документ' : 'Редактировать документ'">Документ</h1>
+    <form th:action="${isNew} ? @{/admin/documents/new} : @{/admin/documents/{id}/edit(id=${documentId})}"
+          method="post" style="max-width:700px">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+        <div style="margin-bottom:1rem">
+            <label>Заголовок (RU) *</label><br/>
+            <input type="text" name="titleRu" th:value="${document.titleRu}" required
+                   placeholder="Пользовательское соглашение"
+                   style="width:100%;padding:.5rem;box-sizing:border-box"/>
+        </div>
+
+        <div style="margin-bottom:1rem">
+            <label>Заголовок (KK)</label><br/>
+            <input type="text" name="titleKk" th:value="${document.titleKk}"
+                   placeholder="Если пусто — будет как RU"
+                   style="width:100%;padding:.5rem;box-sizing:border-box"/>
+        </div>
+
+        <div style="margin-bottom:1rem">
+            <label>Заголовок (EN)</label><br/>
+            <input type="text" name="titleEn" th:value="${document.titleEn}"
+                   placeholder="If empty — same as RU"
+                   style="width:100%;padding:.5rem;box-sizing:border-box"/>
+        </div>
+
+        <div style="margin-bottom:1rem">
+            <label>URL *</label><br/>
+            <input type="url" name="url" th:value="${document.url}" required
+                   placeholder="https://citydrive.kz/docs/terms-ru.html"
+                   style="width:100%;padding:.5rem;box-sizing:border-box"/>
+            <small style="color:#888">Flutter откроет эту ссылку в браузере</small>
+        </div>
+
+        <div style="margin-bottom:1rem">
+            <label>Порядок сортировки</label><br/>
+            <input type="number" name="sortOrder" th:value="${document.sortOrder}" min="1"
+                   style="width:120px;padding:.5rem;box-sizing:border-box"/>
+        </div>
+
+        <div style="margin-bottom:1.5rem">
+            <label>
+                <input type="checkbox" name="active" value="true" th:checked="${document.active}"/>
+                Активен (виден в приложении)
+            </label>
+        </div>
+
+        <button type="submit" class="btn primary">Сохранить</button>
+        &nbsp;
+        <a th:href="@{/admin/documents}">Отмена</a>
+    </form>
+</main>
+</body>
+</html>

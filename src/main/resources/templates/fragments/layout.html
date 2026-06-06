@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="${title}">City Drive Admin</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}"/>
+</head>
+<body>
+<nav th:fragment="nav" class="nav">
+    <a th:href="@{/admin}" class="brand">City Drive Admin</a>
+    <a th:href="@{/admin}">Дашборд</a>
+    <a th:href="@{/admin/marks}">Отметки</a>
+    <a th:href="@{/admin/news}">Новости</a>
+    <a th:href="@{/admin/documents}">Документы</a>
+    <a th:href="@{/admin/cities}">Города</a>
+    <a th:href="@{/admin/companies}">Заявки контроллеров</a>
+    <a th:href="@{/admin/support}">Поддержка</a>
+    <a th:href="@{/admin/users}">Пользователи</a>
+    <form th:action="@{/logout}" method="post" class="logout-form">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        <button type="submit">Выйти</button>
+    </form>
+</nav>
+</body>
+</html>
