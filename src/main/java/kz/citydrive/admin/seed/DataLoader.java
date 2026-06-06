@@ -1,11 +1,15 @@
 package kz.citydrive.admin.seed;
 
+import kz.citydrive.admin.domain.Company;
+import kz.citydrive.admin.domain.CompanyStatus;
 import kz.citydrive.admin.domain.LegalDocument;
 import kz.citydrive.admin.domain.City;
 import kz.citydrive.admin.domain.MarkStatus;
 import kz.citydrive.admin.domain.News;
 import kz.citydrive.admin.domain.RoadMark;
+import kz.citydrive.admin.domain.User;
 import kz.citydrive.admin.domain.UserRole;
+import kz.citydrive.admin.repository.CompanyRepository;
 import kz.citydrive.admin.repository.LegalDocumentRepository;
 import kz.citydrive.admin.repository.CityRepository;
 import kz.citydrive.admin.repository.NewsRepository;
@@ -29,6 +33,7 @@ public class DataLoader implements CommandLineRunner {
     private final NewsRepository newsRepository;
     private final LegalDocumentRepository legalDocumentRepository;
     private final CityRepository cityRepository;
+    private final CompanyRepository companyRepository;
     private final UserService userService;
 
     public DataLoader(
@@ -37,12 +42,14 @@ public class DataLoader implements CommandLineRunner {
             NewsRepository newsRepository,
             LegalDocumentRepository legalDocumentRepository,
             CityRepository cityRepository,
+            CompanyRepository companyRepository,
             UserService userService) {
         this.userRepository = userRepository;
         this.roadMarkRepository = roadMarkRepository;
         this.newsRepository = newsRepository;
         this.legalDocumentRepository = legalDocumentRepository;
         this.cityRepository = cityRepository;
+        this.companyRepository = companyRepository;
         this.userService = userService;
     }
 
@@ -61,6 +68,21 @@ public class DataLoader implements CommandLineRunner {
             seedCities();
         }
         approveLegacyUsers();
+    }
+
+    private void seedApprovedController(User controller, String companyName, String bin) {
+        Company company = new Company();
+        company.setUserId(controller.getId());
+        company.setName(companyName);
+        company.setBin(bin);
+        company.setLegalAddress("г. Алматы, ул. Примерная 1");
+        company.setFoundedYear(2015);
+        company.setStatus(CompanyStatus.APPROVED);
+        company.setSubmittedAt(Instant.now());
+        companyRepository.save(company);
+
+        controller.setApproved(true);
+        userRepository.save(controller);
     }
 
     private void approveLegacyUsers() {
@@ -88,8 +110,8 @@ public class DataLoader implements CommandLineRunner {
         userRepository.save(resident2);
         var controller1 = userService.createUser("Марат Оспанов", "+77002222222", "controller1", UserRole.CONTROLLER);
         var controller2 = userService.createUser("Динара Сейтова", "+77004444444", "controller2", UserRole.CONTROLLER);
-        userService.setApproval(controller1.getId(), true);
-        userService.setApproval(controller2.getId(), true);
+        seedApprovedController(controller1, "ТОО Road Control", "770022222001");
+        seedApprovedController(controller2, "ТОО City Monitor", "770044444001");
 
         List<RoadMarkSeed> seeds = List.of(
                 seed(resident1.getId(), null, "Яма на проспекте", "Глубокая яма", "пр. Абая 120", 43.238, 76.945, "pothole", "high", MarkStatus.NEW, 0),
