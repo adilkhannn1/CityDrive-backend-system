@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
 @Service
 public class RoadMarkService {
 
-    private static final List<MarkStatus> CONTROLLER_PENDING_STATUSES =
-            List.of(MarkStatus.NEW, MarkStatus.PENDING);
+    /** Admin-approved marks waiting for a controller to accept. */
+    private static final List<MarkStatus> CONTROLLER_AVAILABLE_STATUSES = List.of(MarkStatus.CONFIRMED);
     private static final List<MarkStatus> CONTROLLER_ASSIGNED_STATUSES =
-            List.of(MarkStatus.CONFIRMED, MarkStatus.IN_PROGRESS, MarkStatus.FIXED, MarkStatus.REJECTED);
+            List.of(MarkStatus.CONFIRMED, MarkStatus.IN_PROGRESS, MarkStatus.FIXED);
     private static final List<MarkStatus> CONTROLLER_IN_WORK_STATUSES =
             List.of(MarkStatus.CONFIRMED, MarkStatus.IN_PROGRESS);
 
@@ -128,7 +128,7 @@ public class RoadMarkService {
         int pageNumber = offset == null || offset <= 0 ? 0 : offset / pageSize;
 
         List<RoadMark> marks = roadMarkRepository.searchPendingForController(
-                CONTROLLER_PENDING_STATUSES,
+                CONTROLLER_AVAILABLE_STATUSES,
                 blankToNull(query),
                 blankToNull(severity),
                 blankToNull(type),
@@ -153,19 +153,18 @@ public class RoadMarkService {
             User controller, String query, String severity, String type, Integer limit, Integer offset) {
         requireApprovedController(controller);
 
-        long newCount =
-                roadMarkRepository.countByStatusInAndAssignedControllerIdIsNull(CONTROLLER_PENDING_STATUSES);
+        List<RoadMarkDto> pendingMarks =
+                findPendingDtosForController(controller, query, severity, type, limit, offset, controller.getId());
+        List<RoadMarkDto> myMarks = findMineForControllerDtos(controller);
+
         long inWorkCount = roadMarkRepository.countByAssignedControllerIdAndStatusIn(
                 controller.getId(), CONTROLLER_IN_WORK_STATUSES);
         long doneCount =
                 roadMarkRepository.countByAssignedControllerIdAndStatus(controller.getId(), MarkStatus.FIXED);
+        long newCount = pendingMarks.size();
 
         ControllerDashboardStatsDto stats =
                 new ControllerDashboardStatsDto(newCount, newCount, inWorkCount, doneCount);
-
-        List<RoadMarkDto> pendingMarks =
-                findPendingDtosForController(controller, query, severity, type, limit, offset, controller.getId());
-        List<RoadMarkDto> myMarks = findMineForControllerDtos(controller);
 
         return new ControllerDashboardDto(stats, pendingMarks, myMarks);
     }
@@ -276,7 +275,7 @@ public class RoadMarkService {
             return;
         }
 
-        if (!CONTROLLER_PENDING_STATUSES.contains(mark.getStatus())) {
+        if (mark.getStatus() != MarkStatus.CONFIRMED || mark.getAssignedControllerId() != null) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Нельзя изменить статус: заявка не ожидает действия контроллера");
         }
@@ -287,7 +286,9 @@ public class RoadMarkService {
         }
 
         mark.setStatus(targetStatus);
-        mark.setAssignedControllerId(controllerId);
+        if (targetStatus == MarkStatus.CONFIRMED) {
+            mark.setAssignedControllerId(controllerId);
+        }
         applyControllerComment(mark, targetStatus, request);
     }
 
@@ -318,7 +319,8 @@ public class RoadMarkService {
     }
 
     private void applyStatusUpdate(RoadMark mark, StatusUpdateRequest request, User controller, boolean controllerOnly) {
-        mark.setStatus(MarkStatus.fromValue(request.getStatus()));
+        MarkStatus newStatus = MarkStatus.fromValue(request.getStatus());
+        mark.setStatus(newStatus);
 
         if (request.getAssignedControllerId() != null) {
             Long controllerId = request.getAssignedControllerId();
@@ -330,6 +332,8 @@ public class RoadMarkService {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot assign mark to another controller");
             }
             mark.setAssignedControllerId(controllerId);
+        } else if (newStatus == MarkStatus.CONFIRMED) {
+            mark.setAssignedControllerId(null);
         }
 
         if (request.getAdminNote() != null) {
