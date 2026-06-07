@@ -14,6 +14,8 @@ import kz.citydrive.admin.dto.ControllerDashboardStatsDto;
 import kz.citydrive.admin.dto.RoadMarkCreateRequest;
 import kz.citydrive.admin.dto.RoadMarkDto;
 import kz.citydrive.admin.dto.StatusUpdateRequest;
+import kz.citydrive.admin.dto.WorkReportCreateRequest;
+import kz.citydrive.admin.dto.WorkReportDto;
 import kz.citydrive.admin.repository.CompanyRepository;
 import kz.citydrive.admin.repository.RoadMarkRepository;
 import org.springframework.data.domain.PageRequest;
@@ -41,9 +43,11 @@ public class RoadMarkService {
     private static final List<MarkStatus> CONTROLLER_MY_MARKS_STATUSES = List.of(
             MarkStatus.CONTROLLER_ASSIGNED,
             MarkStatus.IN_PROGRESS,
+            MarkStatus.REPORT_SUBMITTED,
             MarkStatus.FIXED,
             MarkStatus.REJECTED);
     private static final List<MarkStatus> CONTROLLER_IN_WORK_STATUSES = List.of(MarkStatus.IN_PROGRESS);
+    private static final int MAX_WORK_REPORT_IMAGES = 3;
 
     private final RoadMarkRepository roadMarkRepository;
     private final CompanyRepository companyRepository;
@@ -138,6 +142,42 @@ public class RoadMarkService {
     public List<RoadMark> findInProgressEntities() {
         return roadMarkRepository.findByStatusAndAssignedControllerIdIsNotNullOrderByWorkStartedAtDesc(
                 MarkStatus.IN_PROGRESS);
+    }
+
+    public List<RoadMark> findWorkReportEntities() {
+        return roadMarkRepository.findByStatusOrderByWorkReportSubmittedAtDesc(MarkStatus.REPORT_SUBMITTED);
+    }
+
+    public List<RoadMarkDto> findWorkReportsForAdmin() {
+        return findWorkReportEntities().stream()
+                .map(m -> toDto(m, Set.of(), true, null))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public RoadMarkDto approveWorkReport(Long markId) {
+        RoadMark mark = getEntity(markId);
+        if (mark.getStatus() != MarkStatus.REPORT_SUBMITTED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Only report_submitted marks can be approved");
+        }
+        mark.setStatus(MarkStatus.FIXED);
+        return toDto(roadMarkRepository.save(mark), Set.of(), true, null);
+    }
+
+    @Transactional
+    public RoadMarkDto rejectWorkReport(Long markId, String adminNote) {
+        RoadMark mark = getEntity(markId);
+        if (mark.getStatus() != MarkStatus.REPORT_SUBMITTED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Only report_submitted marks can be sent back for rework");
+        }
+        mark.setStatus(MarkStatus.IN_PROGRESS);
+        clearWorkReportFields(mark);
+        if (adminNote != null && !adminNote.isBlank()) {
+            mark.setAdminNote(adminNote.trim());
+        }
+        return toDto(roadMarkRepository.save(mark), Set.of(), true, null);
     }
 
     @Transactional
@@ -245,34 +285,51 @@ public class RoadMarkService {
     }
 
     public List<RoadMarkDto> findMineForControllerDtos(User controller) {
+        return findMineForControllerDtos(controller, null);
+    }
+
+    public List<RoadMarkDto> findMineForControllerDtos(User controller, HttpServletRequest request) {
         requireApprovedController(controller);
         Set<Long> likedIds = markInteractionService.findLikedMarkIds(controller.getId());
         return roadMarkRepository
                 .findByAssignedControllerIdAndStatusInOrderByReportedDateDesc(
                         controller.getId(), CONTROLLER_MY_MARKS_STATUSES)
                 .stream()
-                .map(m -> toDto(m, likedIds, true, controller.getId()))
+                .map(m -> enrichDtoForApi(toDto(m, likedIds, true, controller.getId()), m, request))
                 .collect(Collectors.toList());
     }
 
     public ControllerDashboardDto getControllerDashboard(
             User controller, String query, String severity, String type, Integer limit, Integer offset) {
+        return getControllerDashboard(controller, query, severity, type, limit, offset, null);
+    }
+
+    public ControllerDashboardDto getControllerDashboard(
+            User controller,
+            String query,
+            String severity,
+            String type,
+            Integer limit,
+            Integer offset,
+            HttpServletRequest request) {
         requireApprovedController(controller);
 
         List<RoadMarkDto> pendingMarks =
                 findPendingDtosForController(controller, query, severity, type, limit, offset, controller.getId());
-        List<RoadMarkDto> myMarks = findMineForControllerDtos(controller);
+        List<RoadMarkDto> myMarks = findMineForControllerDtos(controller, request);
 
         long applicationsCount = roadMarkRepository.countByAssignedControllerIdAndStatus(
                 controller.getId(), MarkStatus.CONTROLLER_ASSIGNED);
         long inWorkCount = roadMarkRepository.countByAssignedControllerIdAndStatusIn(
                 controller.getId(), CONTROLLER_IN_WORK_STATUSES);
+        long pendingReviewCount = roadMarkRepository.countByAssignedControllerIdAndStatus(
+                controller.getId(), MarkStatus.REPORT_SUBMITTED);
         long doneCount =
                 roadMarkRepository.countByAssignedControllerIdAndStatus(controller.getId(), MarkStatus.FIXED);
         long newCount = pendingMarks.size();
 
-        ControllerDashboardStatsDto stats =
-                new ControllerDashboardStatsDto(newCount, applicationsCount, inWorkCount, doneCount);
+        ControllerDashboardStatsDto stats = new ControllerDashboardStatsDto(
+                newCount, applicationsCount, inWorkCount, doneCount, pendingReviewCount);
 
         return new ControllerDashboardDto(stats, pendingMarks, myMarks);
     }
@@ -339,6 +396,12 @@ public class RoadMarkService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Controller must be assigned");
             }
         }
+        if (newStatus == MarkStatus.FIXED
+                && mark.getStatus() != MarkStatus.REPORT_SUBMITTED
+                && mark.getStatus() != MarkStatus.IN_PROGRESS) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Mark must be in report_submitted or in_progress status to mark fixed");
+        }
         applyStatusUpdate(mark, request, null, false);
         return toDto(roadMarkRepository.save(mark), Set.of(), false, null);
     }
@@ -364,11 +427,14 @@ public class RoadMarkService {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST, "Only admin can move mark to in_progress after acceptance");
             }
-            if (targetStatus == MarkStatus.FIXED && mark.getStatus() != MarkStatus.IN_PROGRESS) {
+            if (targetStatus == MarkStatus.FIXED) {
                 throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "Work report or in_progress status required before fixed");
+                        HttpStatus.BAD_REQUEST, "Submit work report instead of setting fixed directly");
             }
             mark.setStatus(targetStatus);
+        } else if (targetStatus == MarkStatus.REPORT_SUBMITTED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Submit work report instead of setting report_submitted directly");
         } else {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -384,47 +450,169 @@ public class RoadMarkService {
             Long markId,
             User controller,
             String description,
+            MultipartFile[] images,
             MultipartFile[] photos,
             HttpServletRequest request) {
-        requireApprovedController(controller);
+        List<MultipartFile> files = mergeImageFiles(images, photos);
+        List<String> storedPaths = new ArrayList<>();
+        for (MultipartFile file : files) {
+            storedPaths.add(fileStorageService.saveMarkWorkPhoto(markId, file));
+        }
+        return persistWorkReport(markId, controller, description, storedPaths, request);
+    }
+
+    @Transactional
+    public RoadMarkDto submitWorkReportJson(
+            Long markId, User controller, WorkReportCreateRequest body, HttpServletRequest request) {
+        String description = body != null ? body.getDescription() : null;
+        List<String> imageUrls = body != null && body.getImageUrls() != null ? body.getImageUrls() : List.of();
+        List<String> storedPaths = normalizeWorkReportImageUrls(imageUrls);
+        return persistWorkReport(markId, controller, description, storedPaths, request);
+    }
+
+    public RoadMarkDto enrichDtoForApi(RoadMarkDto dto, RoadMark mark, HttpServletRequest request) {
+        if (dto == null || request == null) {
+            return dto;
+        }
+        List<String> resolvedImages = resolvePublicUrls(parseStoredImages(mark.getWorkReportImagesJson()), request);
+        dto.setWorkReportImages(resolvedImages);
+        WorkReportDto report = dto.getWorkReport();
+        if (report == null && (mark.getWorkReportSubmittedAt() != null || hasWorkReportContent(mark))) {
+            report = new WorkReportDto();
+            report.setDescription(mark.getWorkReportDescription());
+            report.setSubmittedAt(mark.getWorkReportSubmittedAt());
+            dto.setWorkReport(report);
+        }
+        if (report != null) {
+            report.setImages(resolvedImages);
+            if (report.getSubmittedAt() == null) {
+                report.setSubmittedAt(mark.getWorkReportSubmittedAt());
+            }
+            if (report.getDescription() == null) {
+                report.setDescription(mark.getWorkReportDescription());
+            }
+        }
+        return dto;
+    }
+
+    private RoadMarkDto persistWorkReport(
+            Long markId,
+            User controller,
+            String description,
+            List<String> storedPaths,
+            HttpServletRequest request) {
+        if (controller.getRole() != UserRole.CONTROLLER || !controller.isApproved()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Недостаточно прав");
+        }
+
         RoadMark mark = getEntity(markId);
-        requireAssignedController(mark, controller.getId());
+
+        if (mark.getAssignedControllerId() == null || !mark.getAssignedControllerId().equals(controller.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Заявка назначена другому контроллеру");
+        }
+
+        if (mark.getStatus() == MarkStatus.REPORT_SUBMITTED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Отчёт уже отправлен");
+        }
 
         if (mark.getStatus() != MarkStatus.IN_PROGRESS) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Work report can only be submitted for marks in in_progress status");
+                    HttpStatus.CONFLICT, "Отчёт можно отправить только для заявки в работе");
         }
 
-        List<String> storedPaths = new ArrayList<>();
-        if (photos != null) {
-            for (MultipartFile photo : photos) {
-                if (photo != null && !photo.isEmpty()) {
-                    storedPaths.add(fileStorageService.saveMarkWorkPhoto(markId, photo));
+        if (storedPaths.size() > MAX_WORK_REPORT_IMAGES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Максимум 3 фото");
+        }
+
+        boolean hasDescription = description != null && !description.isBlank();
+        if (!hasDescription && storedPaths.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Добавьте фото или описание");
+        }
+
+        mark.setWorkReportDescription(hasDescription ? description.trim() : null);
+        mark.setWorkReportImagesJson(toImagesJson(storedPaths));
+        mark.setWorkReportSubmittedAt(Instant.now());
+        mark.setStatus(MarkStatus.REPORT_SUBMITTED);
+
+        RoadMark saved = roadMarkRepository.save(mark);
+        RoadMarkDto dto = toDto(saved, markInteractionService.findLikedMarkIds(controller.getId()), true, controller.getId());
+        return enrichDtoForApi(dto, saved, request);
+    }
+
+    private List<MultipartFile> mergeImageFiles(MultipartFile[] images, MultipartFile[] photos) {
+        List<MultipartFile> files = new ArrayList<>();
+        if (images != null) {
+            for (MultipartFile file : images) {
+                if (file != null && !file.isEmpty()) {
+                    files.add(file);
                 }
             }
         }
+        if (photos != null) {
+            for (MultipartFile file : photos) {
+                if (file != null && !file.isEmpty()) {
+                    files.add(file);
+                }
+            }
+        }
+        return files;
+    }
 
-        if ((description == null || description.isBlank()) && storedPaths.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "description or photos required");
+    private List<String> normalizeWorkReportImageUrls(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return List.of();
         }
+        List<String> normalized = new ArrayList<>();
+        for (String url : imageUrls) {
+            if (url == null || url.isBlank()) {
+                continue;
+            }
+            String trimmed = url.trim();
+            if (trimmed.startsWith("http")) {
+                int uploadsIndex = trimmed.indexOf("/uploads/");
+                normalized.add(uploadsIndex >= 0 ? trimmed.substring(uploadsIndex) : trimmed);
+            } else if (trimmed.startsWith("/uploads/")) {
+                normalized.add(trimmed);
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid image URL: " + trimmed);
+            }
+            if (normalized.size() > MAX_WORK_REPORT_IMAGES) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Максимум 3 фото");
+            }
+        }
+        return normalized;
+    }
 
-        if (description != null && !description.isBlank()) {
-            mark.setWorkReportDescription(description.trim());
+    private List<String> parseStoredImages(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
         }
-        if (!storedPaths.isEmpty()) {
-            mark.setWorkReportImagesJson(toImagesJson(storedPaths));
+        try {
+            return objectMapper.readValue(json, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+        } catch (JsonProcessingException e) {
+            return List.of();
         }
-        mark.setStatus(MarkStatus.FIXED);
+    }
 
-        RoadMark saved = roadMarkRepository.save(mark);
-        RoadMarkDto dto =
-                toDto(saved, markInteractionService.findLikedMarkIds(controller.getId()), true, controller.getId());
-        if (dto.getWorkReportImages() != null && !dto.getWorkReportImages().isEmpty()) {
-            dto.setWorkReportImages(dto.getWorkReportImages().stream()
-                    .map(path -> fileStorageService.resolvePublicUrl(path, request))
-                    .collect(Collectors.toList()));
+    private List<String> resolvePublicUrls(List<String> paths, HttpServletRequest request) {
+        if (paths == null || paths.isEmpty()) {
+            return List.of();
         }
-        return dto;
+        return paths.stream()
+                .map(path -> fileStorageService.resolvePublicUrl(path, request))
+                .collect(Collectors.toList());
+    }
+
+    private boolean hasWorkReportContent(RoadMark mark) {
+        boolean hasDescription =
+                mark.getWorkReportDescription() != null && !mark.getWorkReportDescription().isBlank();
+        return hasDescription || !parseStoredImages(mark.getWorkReportImagesJson()).isEmpty();
+    }
+
+    private void clearWorkReportFields(RoadMark mark) {
+        mark.setWorkReportDescription(null);
+        mark.setWorkReportImagesJson(toImagesJson(Collections.emptyList()));
+        mark.setWorkReportSubmittedAt(null);
     }
 
     private void acceptOrRejectPendingMark(
@@ -557,7 +745,7 @@ public class RoadMarkService {
 
     private void requireAssignedController(RoadMark mark, Long controllerId) {
         if (mark.getAssignedControllerId() == null || !mark.getAssignedControllerId().equals(controllerId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Mark is not assigned to you");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Заявка назначена другому контроллеру");
         }
     }
 
@@ -626,6 +814,7 @@ public class RoadMarkService {
                 "confirmed", roadMarkRepository.countByStatus(MarkStatus.CONFIRMED),
                 "controller_assigned", roadMarkRepository.countByStatus(MarkStatus.CONTROLLER_ASSIGNED),
                 "in_progress", roadMarkRepository.countByStatus(MarkStatus.IN_PROGRESS),
+                "report_submitted", roadMarkRepository.countByStatus(MarkStatus.REPORT_SUBMITTED),
                 "fixed", roadMarkRepository.countByStatus(MarkStatus.FIXED),
                 "rejected", roadMarkRepository.countByStatus(MarkStatus.REJECTED));
     }
