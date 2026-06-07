@@ -14,6 +14,14 @@ public interface RoadMarkRepository extends JpaRepository<RoadMark, Long> {
 
     List<RoadMark> findByStatus(MarkStatus status);
 
+    List<RoadMark> findByStatusOrderByAcceptedAtDesc(MarkStatus status);
+
+    List<RoadMark> findByStatusAndAssignedControllerIdIsNotNullOrderByWorkStartedAtDesc(MarkStatus status);
+
+    List<RoadMark> findByStatusAndAssignedControllerIdIsNullOrderByReportedDateDesc(MarkStatus status);
+
+    List<RoadMark> findByStatusAndAssignedControllerIdIsNotNullOrderByReportedDateDesc(MarkStatus status);
+
     List<RoadMark> findByStatusIn(List<MarkStatus> statuses);
 
     List<RoadMark> findByStatusInAndAssignedControllerIdIsNullOrderByReportedDateDesc(List<MarkStatus> statuses);
@@ -26,6 +34,8 @@ public interface RoadMarkRepository extends JpaRepository<RoadMark, Long> {
     long countByAssignedControllerIdAndStatusIn(Long assignedControllerId, List<MarkStatus> statuses);
 
     long countByAssignedControllerIdAndStatus(Long assignedControllerId, MarkStatus status);
+
+    long countByStatus(MarkStatus status);
 
     @Query(
             """
@@ -46,8 +56,6 @@ public interface RoadMarkRepository extends JpaRepository<RoadMark, Long> {
             Pageable pageable);
 
     List<RoadMark> findByAuthorUserIdOrderByReportedDateDesc(Long authorUserId);
-
-    long countByStatus(MarkStatus status);
 
     void deleteByAuthorUserId(Long authorUserId);
 

@@ -38,8 +38,11 @@ public class RoadMarkService {
     /** Admin-approved marks waiting for a controller to accept. */
     private static final List<MarkStatus> CONTROLLER_AVAILABLE_STATUSES = List.of(MarkStatus.CONFIRMED);
     /** Marks assigned to controller — waiting for admin or in progress. */
-    private static final List<MarkStatus> CONTROLLER_MY_MARKS_STATUSES =
-            List.of(MarkStatus.CONTROLLER_ASSIGNED, MarkStatus.IN_PROGRESS, MarkStatus.FIXED);
+    private static final List<MarkStatus> CONTROLLER_MY_MARKS_STATUSES = List.of(
+            MarkStatus.CONTROLLER_ASSIGNED,
+            MarkStatus.IN_PROGRESS,
+            MarkStatus.FIXED,
+            MarkStatus.REJECTED);
     private static final List<MarkStatus> CONTROLLER_IN_WORK_STATUSES = List.of(MarkStatus.IN_PROGRESS);
 
     private final RoadMarkRepository roadMarkRepository;
@@ -313,6 +316,16 @@ public class RoadMarkService {
     @Transactional
     public RoadMarkDto updateStatus(Long id, StatusUpdateRequest request) {
         RoadMark mark = getEntity(id);
+        MarkStatus newStatus = parseMarkStatus(request.getStatus());
+        if (newStatus == MarkStatus.IN_PROGRESS) {
+            if (mark.getStatus() != MarkStatus.CONTROLLER_ASSIGNED) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Mark must be in controller_assigned status to start work");
+            }
+            if (mark.getAssignedControllerId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Controller must be assigned");
+            }
+        }
         applyStatusUpdate(mark, request, null, false);
         return toDto(roadMarkRepository.save(mark), Set.of(), false, null);
     }
@@ -326,7 +339,7 @@ public class RoadMarkService {
         }
 
         RoadMark mark = getEntity(id);
-        MarkStatus targetStatus = MarkStatus.fromValue(request.getStatus());
+        MarkStatus targetStatus = parseMarkStatus(request.getStatus());
 
         if (targetStatus == MarkStatus.CONFIRMED
                 || targetStatus == MarkStatus.CONTROLLER_ASSIGNED
@@ -483,7 +496,7 @@ public class RoadMarkService {
     }
 
     private void applyStatusUpdate(RoadMark mark, StatusUpdateRequest request, User controller, boolean controllerOnly) {
-        MarkStatus newStatus = MarkStatus.fromValue(request.getStatus());
+        MarkStatus newStatus = parseMarkStatus(request.getStatus());
         mark.setStatus(newStatus);
 
         if (request.getAssignedControllerId() != null) {
@@ -515,6 +528,14 @@ public class RoadMarkService {
         }
         if (!user.isApproved()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Controller is not approved");
+        }
+    }
+
+    private MarkStatus parseMarkStatus(String value) {
+        try {
+            return MarkStatus.fromValue(value);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
         }
     }
 

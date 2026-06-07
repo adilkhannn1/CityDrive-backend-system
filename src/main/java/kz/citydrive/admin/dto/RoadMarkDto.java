@@ -39,6 +39,15 @@ public class RoadMarkDto {
     @com.fasterxml.jackson.annotation.JsonProperty("assigned_controller")
     private AssignedControllerDto assignedController;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("work_report_description")
+    private String workReportDescription;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("work_report_images")
+    private List<String> workReportImages;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("work_started_at")
+    private Instant workStartedAt;
+
     public static RoadMarkDto fromEntity(RoadMark mark, ObjectMapper objectMapper) {
         RoadMarkDto dto = new RoadMarkDto();
         dto.setId(mark.getId());
@@ -60,6 +69,9 @@ public class RoadMarkDto {
         dto.setAdminNote(mark.getAdminNote());
         dto.setControllerComment(mark.getControllerComment());
         dto.setAcceptedAt(mark.getAcceptedAt());
+        dto.setWorkReportDescription(mark.getWorkReportDescription());
+        dto.setWorkReportImages(parseImages(mark.getWorkReportImagesJson(), objectMapper));
+        dto.setWorkStartedAt(mark.getWorkStartedAt());
         return dto;
     }
 
@@ -248,5 +260,29 @@ public class RoadMarkDto {
 
     public void setAssignedController(AssignedControllerDto assignedController) {
         this.assignedController = assignedController;
+    }
+
+    public String getWorkReportDescription() {
+        return workReportDescription;
+    }
+
+    public void setWorkReportDescription(String workReportDescription) {
+        this.workReportDescription = workReportDescription;
+    }
+
+    public List<String> getWorkReportImages() {
+        return workReportImages;
+    }
+
+    public void setWorkReportImages(List<String> workReportImages) {
+        this.workReportImages = workReportImages;
+    }
+
+    public Instant getWorkStartedAt() {
+        return workStartedAt;
+    }
+
+    public void setWorkStartedAt(Instant workStartedAt) {
+        this.workStartedAt = workStartedAt;
     }
 }

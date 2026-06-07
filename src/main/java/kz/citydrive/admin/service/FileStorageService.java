@@ -18,6 +18,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class FileStorageService {
@@ -77,6 +78,23 @@ public class FileStorageService {
         }
         String base = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort();
         return storedPath.startsWith("/") ? base + storedPath : base + "/" + storedPath;
+    }
+
+    public String saveMarkWorkPhoto(Long markId, MultipartFile file) {
+        validateImage(file);
+
+        String ext = extensionFor(file);
+        String filename = System.currentTimeMillis() + "_" + UUID.randomUUID() + ext;
+        Path targetDir = Paths.get(uploadsDir, "marks", String.valueOf(markId), "work").toAbsolutePath().normalize();
+
+        try {
+            Files.createDirectories(targetDir);
+            Files.copy(file.getInputStream(), targetDir.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to save image");
+        }
+
+        return "/uploads/marks/" + markId + "/work/" + filename;
     }
 
     public Resource loadStoredFile(String storedPath) {
@@ -159,6 +177,20 @@ public class FileStorageService {
         if (!ALLOWED_EXTENSIONS.contains(ext.substring(1))) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Allowed formats: pdf, jpg, jpeg, png");
+        }
+    }
+
+    private void validateImage(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is required");
+        }
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File size must not exceed 10 MB");
+        }
+
+        String ext = extensionFor(file);
+        if (!Set.of("jpg", "jpeg", "png").contains(ext.substring(1))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Allowed formats: jpg, jpeg, png");
         }
     }
 

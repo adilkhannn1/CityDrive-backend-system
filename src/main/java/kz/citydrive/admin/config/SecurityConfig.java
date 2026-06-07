@@ -98,6 +98,7 @@ public class SecurityConfig {
                         .hasRole("CONTROLLER")
                         .requestMatchers("/api/controller/**").hasAnyRole("CONTROLLER", "ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/marks/*/status").hasAnyRole("CONTROLLER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/marks/*/work-report").hasRole("CONTROLLER")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {

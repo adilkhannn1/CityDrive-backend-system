@@ -164,6 +164,20 @@ public class MarkApiController {
         return roadMarkService.updateStatusByController(id, request, user);
     }
 
+    @PostMapping(value = "/{id:\\d+}/work-report", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public RoadMarkDto submitWorkReport(
+            @PathVariable Long id,
+            @RequestParam(required = false) String description,
+            @RequestParam(value = "photos", required = false) MultipartFile[] photos,
+            @AuthenticationPrincipal AdminUserDetails principal,
+            HttpServletRequest request) {
+        User user = requirePrincipal(principal);
+        if (user.getRole() != UserRole.CONTROLLER) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only controllers can submit work reports");
+        }
+        return roadMarkService.submitWorkReport(id, user, description, photos, request);
+    }
+
     @DeleteMapping("/{id:\\d+}")
     public Map<String, Boolean> delete(@PathVariable Long id) {
         roadMarkService.delete(id);

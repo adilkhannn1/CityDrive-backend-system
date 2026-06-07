@@ -39,5 +39,10 @@ public class DatabaseMigrationRunner implements CommandLineRunner {
         jdbcTemplate.execute(
                 "ALTER TABLE road_marks ADD COLUMN IF NOT EXISTS controller_comment VARCHAR(2000)");
         jdbcTemplate.execute("ALTER TABLE road_marks ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP");
+        jdbcTemplate.execute(
+                "ALTER TABLE road_marks ADD COLUMN IF NOT EXISTS work_report_description VARCHAR(4000)");
+        jdbcTemplate.execute(
+                "ALTER TABLE road_marks ADD COLUMN IF NOT EXISTS work_report_images_json VARCHAR(8000)");
+        jdbcTemplate.execute("ALTER TABLE road_marks ADD COLUMN IF NOT EXISTS work_started_at TIMESTAMP");
     }
 }

@@ -29,6 +29,14 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(ex.getStatusCode()).body(body);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", ex.getMessage() != null ? ex.getMessage() : "Bad request");
+        body.put("status_code", HttpStatus.BAD_REQUEST.value());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
         Map<String, Object> body = new LinkedHashMap<>();

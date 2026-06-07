@@ -28,6 +28,25 @@
             </button>
         </form>
     </div>
+
+    <div th:if="${mark.status?.value == 'controller_assigned'}"
+         style="background:#fff3e0;border:1px solid #ff9800;border-radius:8px;padding:1rem;margin-bottom:1.5rem">
+        <strong>Ожидает одобрения начала работы.</strong>
+        <span th:text="${assignedControllerLabel}">Controller</span>
+        <a th:href="@{/admin/mark-applications}" style="margin-left:0.5rem">→ раздел «Заявки от компании»</a>
+    </div>
+
+    <div th:if="${mark.status?.value == 'in_progress' and mark.assignedControllerId != null}"
+         style="background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:1rem;margin-bottom:1.5rem">
+        <strong>В работе:</strong>
+        <span th:text="${assignedControllerLabel}">Controller</span>
+        <a th:href="@{/admin/in-progress}" style="margin-left:0.5rem">→ раздел «В работе»</a>
+    </div>
+
+    <div th:if="${mark.status?.value == 'confirmed' and mark.assignedControllerId == null}"
+         style="background:#e3f2fd;border:1px solid #2196f3;border-radius:8px;padding:1rem;margin-bottom:1.5rem">
+        Отметка одобрена и доступна контроллерам в приложении («Новые»).
+    </div>
     <!-- Фотографии -->
     <div th:if="${!#lists.isEmpty(images)}" style="margin-bottom:1.5rem">
         <h2>Фотографии</h2>
@@ -68,6 +87,10 @@
                 <dt>Лайки</dt><dd th:text="${mark.likes}"></dd>
                 <dt>Комментарии</dt><dd th:text="${mark.commentsCount}"></dd>
                 <dt>Заметка админа</dt><dd th:text="${mark.adminNote} ?: '—'"></dd>
+                <dt>Контролёр</dt>
+                <dd th:text="${assignedControllerLabel} ?: '—'"></dd>
+                <dt>Комментарий контроллера</dt><dd th:text="${mark.controllerComment} ?: '—'"></dd>
+                <dt>Отчёт о работе</dt><dd th:text="${mark.workReportDescription} ?: '—'"></dd>
             </dl>
         </section>
         <section class="card">
@@ -81,7 +104,7 @@
                             th:text="${s.value}"
                             th:selected="${mark.status == s}"></option>
                 </select>
-                <label>Контролёр</label>
+                <label>Контролёр (ручная коррекция)</label>
                 <select name="assignedControllerId">
                     <option value="">— не назначен —</option>
                     <option th:each="c : ${controllers}"
@@ -89,6 +112,9 @@
                             th:text="${c.fullName + ' (' + c.phone + ')'}"
                             th:selected="${mark.assignedControllerId == c.id}"></option>
                 </select>
+                <p style="color:#64748b;font-size:0.9rem;margin:0.5rem 0">
+                    Назначение через список — только для ручной коррекции. Обычно контроллер принимает заявку в приложении.
+                </p>
                 <label>Заметка админа</label>
                 <textarea name="adminNote" rows="3" th:text="${mark.adminNote}"></textarea>
                 <button type="submit" class="btn primary">Сохранить</button>

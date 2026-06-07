@@ -13,8 +13,10 @@
         <select name="status">
             <option value="">Все</option>
             <option value="new"         th:selected="${statusFilter == 'new'}">🔔 Ожидают проверки (new)</option>
+            <option value="available"   th:selected="${statusFilter == 'available'}">confirmed — ждут контроллера</option>
+            <option value="controller_assigned" th:selected="${statusFilter == 'controller_assigned'}">controller_assigned</option>
             <option value="pending"     th:selected="${statusFilter == 'pending'}">pending</option>
-            <option value="confirmed"   th:selected="${statusFilter == 'confirmed'}">confirmed</option>
+            <option value="confirmed"   th:selected="${statusFilter == 'confirmed'}">confirmed (все)</option>
             <option value="in_progress" th:selected="${statusFilter == 'in_progress'}">in_progress</option>
             <option value="fixed"       th:selected="${statusFilter == 'fixed'}">fixed</option>
             <option value="rejected"    th:selected="${statusFilter == 'rejected'}">rejected</option>
@@ -32,6 +34,7 @@
             <th>Тип</th>
             <th>Серьёзность</th>
             <th>Статус</th>
+            <th>Контролёр</th>
             <th>Автор</th>
             <th>Действия</th>
         </tr>
@@ -60,6 +63,20 @@
                                  (${m.status?.value == 'rejected'} ? 'background:#f44336;color:#fff' : ''))">
                 </span>
             </td>
+            <td>
+                <span th:if="${m.assignedControllerId != null and m.status?.value == 'controller_assigned'}"
+                      th:text="${controllerLabels[m.assignedControllerId]} ?: ('ID ' + m.assignedControllerId)}">
+                </span>
+                <span th:if="${m.assignedControllerId != null and m.status?.value == 'in_progress'}"
+                      th:text="${controllerLabels[m.assignedControllerId]} ?: ('ID ' + m.assignedControllerId)}">
+                </span>
+                <span th:if="${m.assignedControllerId == null and m.status?.value == 'confirmed'}" style="color:#888">
+                    ждёт контроллера
+                </span>
+                <span th:if="${m.assignedControllerId == null and m.status?.value != 'confirmed'}">—</span>
+                <a th:if="${m.status?.value == 'controller_assigned'}"
+                   th:href="@{/admin/mark-applications}" style="margin-left:4px;font-size:0.85rem">→ заявки</a>
+            </td>
             <td th:text="${m.author}">author</td>
             <td>
                 <a th:href="@{/admin/marks/{id}(id=${m.id})}">Открыть</a>
@@ -85,7 +102,7 @@
             </td>
         </tr>
         <tr th:if="${#lists.isEmpty(marks)}">
-            <td colspan="8" class="empty">Нет отметок</td>
+            <td colspan="9" class="empty">Нет отметок</td>
         </tr>
         </tbody>
     </table>

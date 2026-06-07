@@ -62,6 +62,15 @@ public class RoadMark {
     @Column(name = "accepted_at")
     private Instant acceptedAt;
 
+    @Column(name = "work_report_description", length = 4000)
+    private String workReportDescription;
+
+    @Column(name = "work_report_images_json", length = 8000)
+    private String workReportImagesJson = "[]";
+
+    @Column(name = "work_started_at")
+    private Instant workStartedAt;
+
     public Long getId() {
         return id;
     }
@@ -212,5 +221,29 @@ public class RoadMark {
 
     public void setAcceptedAt(Instant acceptedAt) {
         this.acceptedAt = acceptedAt;
+    }
+
+    public String getWorkReportDescription() {
+        return workReportDescription;
+    }
+
+    public void setWorkReportDescription(String workReportDescription) {
+        this.workReportDescription = workReportDescription;
+    }
+
+    public String getWorkReportImagesJson() {
+        return workReportImagesJson;
+    }
+
+    public void setWorkReportImagesJson(String workReportImagesJson) {
+        this.workReportImagesJson = workReportImagesJson;
+    }
+
+    public Instant getWorkStartedAt() {
+        return workStartedAt;
+    }
+
+    public void setWorkStartedAt(Instant workStartedAt) {
+        this.workStartedAt = workStartedAt;
     }
 }

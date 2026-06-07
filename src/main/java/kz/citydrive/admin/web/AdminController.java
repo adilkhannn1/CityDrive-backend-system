@@ -46,8 +46,9 @@ public class AdminController {
 
     @GetMapping("/marks")
     public String marks(@RequestParam(required = false) String status, Model model) {
-        List<RoadMark> marks = roadMarkService.findByStatusFilterEntities(status);
+        List<RoadMark> marks = roadMarkService.findForAdminPanel(status);
         model.addAttribute("marks", marks);
+        model.addAttribute("controllerLabels", roadMarkService.buildControllerLabels(marks));
         model.addAttribute("statusFilter", status);
         return "admin/marks";
     }
@@ -58,6 +59,7 @@ public class AdminController {
         RoadMarkDto dto = roadMarkService.getDto(id, null);
         model.addAttribute("mark", mark);
         model.addAttribute("images", dto.getImages());
+        model.addAttribute("assignedControllerLabel", roadMarkService.describeAssignedController(mark.getAssignedControllerId()));
         model.addAttribute("controllers", userService.findControllers());
         model.addAttribute("comments", markInteractionService.findAllCommentsForAdmin(id));
         model.addAttribute("likesList", markInteractionService.findAllLikesForAdmin(id));
@@ -78,6 +80,39 @@ public class AdminController {
         roadMarkService.updateStatus(id, request);
         redirectAttributes.addFlashAttribute("message", "Статус обновлён");
         return "redirect:/admin/marks/" + id;
+    }
+
+    @GetMapping("/mark-applications")
+    public String markApplications(Model model) {
+        List<RoadMark> marks = roadMarkService.findControllerApplicationEntities();
+        model.addAttribute("marks", marks);
+        model.addAttribute("controllerLabels", roadMarkService.buildControllerLabels(marks));
+        return "admin/mark-applications";
+    }
+
+    @PostMapping("/mark-applications/{id}/approve")
+    public String approveWorkStart(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        roadMarkService.approveWorkStart(id);
+        redirectAttributes.addFlashAttribute("message", "Начало работы одобрено");
+        return "redirect:/admin/in-progress";
+    }
+
+    @PostMapping("/mark-applications/{id}/reject")
+    public String rejectMarkApplication(
+            @PathVariable Long id,
+            @RequestParam(required = false) String adminNote,
+            RedirectAttributes redirectAttributes) {
+        roadMarkService.rejectControllerApplication(id, adminNote);
+        redirectAttributes.addFlashAttribute("message", "Заявка контроллера отклонена, отметка снова доступна контроллерам");
+        return "redirect:/admin/mark-applications";
+    }
+
+    @GetMapping("/in-progress")
+    public String inProgressMarks(Model model) {
+        List<RoadMark> marks = roadMarkService.findInProgressEntities();
+        model.addAttribute("marks", marks);
+        model.addAttribute("controllerLabels", roadMarkService.buildControllerLabels(marks));
+        return "admin/in-progress";
     }
 
     @GetMapping("/users")

@@ -6,6 +6,7 @@ public enum MarkStatus {
     NEW("new"),
     PENDING("pending"),
     CONFIRMED("confirmed"),
+    CONTROLLER_ASSIGNED("controller_assigned"),
     REJECTED("rejected"),
     IN_PROGRESS("in_progress"),
     FIXED("fixed");
