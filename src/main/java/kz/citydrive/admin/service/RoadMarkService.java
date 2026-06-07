@@ -430,19 +430,25 @@ public class RoadMarkService {
     private void acceptOrRejectPendingMark(
             RoadMark mark, User controller, MarkStatus targetStatus, StatusUpdateRequest request) {
         Long controllerId = controller.getId();
-        boolean accepting = targetStatus == MarkStatus.CONFIRMED || targetStatus == MarkStatus.CONTROLLER_ASSIGNED;
+
+        if (mark.getStatus() == MarkStatus.CONTROLLER_ASSIGNED) {
+            handleControllerAssignedAction(mark, controller, targetStatus, request);
+            return;
+        }
 
         if (mark.getAssignedControllerId() != null && !mark.getAssignedControllerId().equals(controllerId)) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Заявка уже принята другим контроллером");
+                    HttpStatus.FORBIDDEN, "Заявка назначена другому исполнителю");
         }
 
-        if (accepting && mark.getStatus() == MarkStatus.CONTROLLER_ASSIGNED) {
-            if (mark.getAssignedControllerId() != null && mark.getAssignedControllerId().equals(controllerId)) {
-                applyControllerComment(mark, MarkStatus.CONTROLLER_ASSIGNED, request);
-                return;
-            }
+        if (isControllerReleaseIntent(targetStatus, request)
+                && mark.getAssignedControllerId() != null
+                && mark.getAssignedControllerId().equals(controllerId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Нельзя отменить: заявка уже в работе или завершена");
         }
+
+        boolean accepting = targetStatus == MarkStatus.CONFIRMED || targetStatus == MarkStatus.CONTROLLER_ASSIGNED;
 
         if (accepting
                 && (mark.getStatus() == MarkStatus.IN_PROGRESS || mark.getStatus() == MarkStatus.FIXED)
@@ -479,6 +485,53 @@ public class RoadMarkService {
 
         mark.setStatus(MarkStatus.REJECTED);
         applyControllerComment(mark, targetStatus, request);
+    }
+
+    private void handleControllerAssignedAction(
+            RoadMark mark, User controller, MarkStatus targetStatus, StatusUpdateRequest request) {
+        Long controllerId = controller.getId();
+
+        if (mark.getAssignedControllerId() == null || !mark.getAssignedControllerId().equals(controllerId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Заявка назначена другому исполнителю");
+        }
+
+        if (isControllerReleaseIntent(targetStatus, request)) {
+            releaseControllerAssignment(mark, controller, request);
+            return;
+        }
+
+        if (targetStatus == MarkStatus.CONTROLLER_ASSIGNED || targetStatus == MarkStatus.CONFIRMED) {
+            applyControllerComment(mark, MarkStatus.CONTROLLER_ASSIGNED, request);
+            return;
+        }
+
+        throw new ResponseStatusException(
+                HttpStatus.CONFLICT, "Нельзя отменить: заявка уже в работе или завершена");
+    }
+
+    /** Option A: confirmed + assigned_controller_id=null. Option B: rejected while waiting for admin. */
+    private boolean isControllerReleaseIntent(MarkStatus targetStatus, StatusUpdateRequest request) {
+        return (targetStatus == MarkStatus.CONFIRMED && request.getAssignedControllerId() == null)
+                || targetStatus == MarkStatus.REJECTED;
+    }
+
+    private void releaseControllerAssignment(RoadMark mark, User controller, StatusUpdateRequest request) {
+        Long controllerId = controller.getId();
+        if (mark.getStatus() != MarkStatus.CONTROLLER_ASSIGNED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Нельзя отменить: заявка уже в работе или завершена");
+        }
+        if (mark.getAssignedControllerId() == null || !mark.getAssignedControllerId().equals(controllerId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Заявка назначена другому исполнителю");
+        }
+
+        mark.setStatus(MarkStatus.CONFIRMED);
+        mark.setAssignedControllerId(null);
+        mark.setAcceptedAt(null);
+        String comment = resolveComment(request);
+        mark.setControllerComment(comment);
     }
 
     private void applyControllerComment(RoadMark mark, MarkStatus targetStatus, StatusUpdateRequest request) {
