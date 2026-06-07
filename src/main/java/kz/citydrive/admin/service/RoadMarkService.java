@@ -1,5 +1,6 @@
 package kz.citydrive.admin.service;
 
+import jakarta.servlet.http.HttpServletRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kz.citydrive.admin.domain.Company;
@@ -19,10 +20,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,28 +37,31 @@ public class RoadMarkService {
 
     /** Admin-approved marks waiting for a controller to accept. */
     private static final List<MarkStatus> CONTROLLER_AVAILABLE_STATUSES = List.of(MarkStatus.CONFIRMED);
-    private static final List<MarkStatus> CONTROLLER_ASSIGNED_STATUSES =
-            List.of(MarkStatus.CONFIRMED, MarkStatus.IN_PROGRESS, MarkStatus.FIXED);
-    private static final List<MarkStatus> CONTROLLER_IN_WORK_STATUSES =
-            List.of(MarkStatus.CONFIRMED, MarkStatus.IN_PROGRESS);
+    /** Marks assigned to controller — waiting for admin or in progress. */
+    private static final List<MarkStatus> CONTROLLER_MY_MARKS_STATUSES =
+            List.of(MarkStatus.CONTROLLER_ASSIGNED, MarkStatus.IN_PROGRESS, MarkStatus.FIXED);
+    private static final List<MarkStatus> CONTROLLER_IN_WORK_STATUSES = List.of(MarkStatus.IN_PROGRESS);
 
     private final RoadMarkRepository roadMarkRepository;
     private final CompanyRepository companyRepository;
     private final UserService userService;
     private final ObjectMapper objectMapper;
     private final MarkInteractionService markInteractionService;
+    private final FileStorageService fileStorageService;
 
     public RoadMarkService(
             RoadMarkRepository roadMarkRepository,
             CompanyRepository companyRepository,
             UserService userService,
             ObjectMapper objectMapper,
-            MarkInteractionService markInteractionService) {
+            MarkInteractionService markInteractionService,
+            FileStorageService fileStorageService) {
         this.roadMarkRepository = roadMarkRepository;
         this.companyRepository = companyRepository;
         this.userService = userService;
         this.objectMapper = objectMapper;
         this.markInteractionService = markInteractionService;
+        this.fileStorageService = fileStorageService;
     }
 
     /** Только подтверждённые отметки — для карты в мобильном приложении */
@@ -91,10 +98,93 @@ public class RoadMarkService {
     }
 
     public List<RoadMark> findByStatusFilterEntities(String statusFilter) {
+        return findForAdminPanel(statusFilter);
+    }
+
+    public List<RoadMark> findForAdminPanel(String statusFilter) {
         if (statusFilter == null || statusFilter.isBlank()) {
             return roadMarkRepository.findAll();
         }
-        return roadMarkRepository.findByStatus(MarkStatus.fromValue(statusFilter));
+        return switch (statusFilter) {
+            case "available" -> roadMarkRepository
+                    .findByStatusAndAssignedControllerIdIsNullOrderByReportedDateDesc(MarkStatus.CONFIRMED);
+            case "controller_assigned" -> roadMarkRepository
+                    .findByStatusOrderByAcceptedAtDesc(MarkStatus.CONTROLLER_ASSIGNED);
+            case "in_progress_assigned" -> roadMarkRepository
+                    .findByStatusAndAssignedControllerIdIsNotNullOrderByWorkStartedAtDesc(MarkStatus.IN_PROGRESS);
+            default -> roadMarkRepository.findByStatus(MarkStatus.fromValue(statusFilter));
+        };
+    }
+
+    public List<RoadMarkDto> findControllerApplicationsForAdmin() {
+        return roadMarkRepository.findByStatusOrderByAcceptedAtDesc(MarkStatus.CONTROLLER_ASSIGNED).stream()
+                .map(m -> toDto(m, Set.of(), true, null))
+                .collect(Collectors.toList());
+    }
+
+    public List<RoadMark> findControllerApplicationEntities() {
+        return roadMarkRepository.findByStatusOrderByAcceptedAtDesc(MarkStatus.CONTROLLER_ASSIGNED);
+    }
+
+    public List<RoadMark> findInProgressEntities() {
+        return roadMarkRepository.findByStatusAndAssignedControllerIdIsNotNullOrderByWorkStartedAtDesc(
+                MarkStatus.IN_PROGRESS);
+    }
+
+    @Transactional
+    public RoadMarkDto approveWorkStart(Long markId) {
+        RoadMark mark = getEntity(markId);
+        if (mark.getStatus() != MarkStatus.CONTROLLER_ASSIGNED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Only controller_assigned marks can be approved to start work");
+        }
+        mark.setStatus(MarkStatus.IN_PROGRESS);
+        mark.setWorkStartedAt(Instant.now());
+        return toDto(roadMarkRepository.save(mark), Set.of(), true, null);
+    }
+
+    @Transactional
+    public RoadMarkDto rejectControllerApplication(Long markId, String adminNote) {
+        RoadMark mark = getEntity(markId);
+        if (mark.getStatus() != MarkStatus.CONTROLLER_ASSIGNED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Only controller_assigned marks can be rejected");
+        }
+        mark.setStatus(MarkStatus.CONFIRMED);
+        mark.setAssignedControllerId(null);
+        mark.setAcceptedAt(null);
+        mark.setControllerComment(null);
+        mark.setWorkStartedAt(null);
+        if (adminNote != null && !adminNote.isBlank()) {
+            mark.setAdminNote(adminNote.trim());
+        }
+        return toDto(roadMarkRepository.save(mark), Set.of(), true, null);
+    }
+
+    public Map<Long, String> buildControllerLabels(List<RoadMark> marks) {
+        Map<Long, String> labels = new HashMap<>();
+        for (RoadMark mark : marks) {
+            Long controllerId = mark.getAssignedControllerId();
+            if (controllerId != null && !labels.containsKey(controllerId)) {
+                AssignedControllerDto controller = buildAssignedController(controllerId);
+                String company = controller.getCompanyName() != null ? controller.getCompanyName() : "—";
+                labels.put(
+                        controllerId,
+                        controller.getFullName() != null ? controller.getFullName() + " (" + company + ")"
+                                : "ID " + controllerId);
+            }
+        }
+        return labels;
+    }
+
+    public String describeAssignedController(Long controllerUserId) {
+        if (controllerUserId == null) {
+            return null;
+        }
+        AssignedControllerDto controller = buildAssignedController(controllerUserId);
+        String company = controller.getCompanyName() != null ? controller.getCompanyName() : "—";
+        return controller.getFullName() != null ? controller.getFullName() + " (" + company + ")"
+                : "ID " + controllerUserId;
     }
 
     public RoadMarkDto getDto(Long id, Long currentUserId) {
@@ -143,7 +233,7 @@ public class RoadMarkService {
         Set<Long> likedIds = markInteractionService.findLikedMarkIds(controller.getId());
         return roadMarkRepository
                 .findByAssignedControllerIdAndStatusInOrderByReportedDateDesc(
-                        controller.getId(), CONTROLLER_ASSIGNED_STATUSES)
+                        controller.getId(), CONTROLLER_MY_MARKS_STATUSES)
                 .stream()
                 .map(m -> toDto(m, likedIds, true, controller.getId()))
                 .collect(Collectors.toList());
@@ -157,6 +247,8 @@ public class RoadMarkService {
                 findPendingDtosForController(controller, query, severity, type, limit, offset, controller.getId());
         List<RoadMarkDto> myMarks = findMineForControllerDtos(controller);
 
+        long applicationsCount = roadMarkRepository.countByAssignedControllerIdAndStatus(
+                controller.getId(), MarkStatus.CONTROLLER_ASSIGNED);
         long inWorkCount = roadMarkRepository.countByAssignedControllerIdAndStatusIn(
                 controller.getId(), CONTROLLER_IN_WORK_STATUSES);
         long doneCount =
@@ -164,7 +256,7 @@ public class RoadMarkService {
         long newCount = pendingMarks.size();
 
         ControllerDashboardStatsDto stats =
-                new ControllerDashboardStatsDto(newCount, newCount, inWorkCount, doneCount);
+                new ControllerDashboardStatsDto(newCount, applicationsCount, inWorkCount, doneCount);
 
         return new ControllerDashboardDto(stats, pendingMarks, myMarks);
     }
@@ -236,36 +328,100 @@ public class RoadMarkService {
         RoadMark mark = getEntity(id);
         MarkStatus targetStatus = MarkStatus.fromValue(request.getStatus());
 
-        if (targetStatus == MarkStatus.CONFIRMED || targetStatus == MarkStatus.REJECTED) {
+        if (targetStatus == MarkStatus.CONFIRMED
+                || targetStatus == MarkStatus.CONTROLLER_ASSIGNED
+                || targetStatus == MarkStatus.REJECTED) {
             acceptOrRejectPendingMark(mark, controller, targetStatus, request);
         } else if (targetStatus == MarkStatus.IN_PROGRESS || targetStatus == MarkStatus.FIXED) {
             requireAssignedController(mark, controller.getId());
+            if (targetStatus == MarkStatus.IN_PROGRESS && mark.getStatus() != MarkStatus.CONTROLLER_ASSIGNED) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Only admin can move mark to in_progress after acceptance");
+            }
+            if (targetStatus == MarkStatus.FIXED && mark.getStatus() != MarkStatus.IN_PROGRESS) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Work report or in_progress status required before fixed");
+            }
             mark.setStatus(targetStatus);
         } else {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Controllers can only set confirmed, rejected, in_progress or fixed");
+                    HttpStatus.BAD_REQUEST,
+                    "Controllers can only set confirmed, controller_assigned, rejected, in_progress or fixed");
         }
 
         RoadMark saved = roadMarkRepository.save(mark);
         return toDto(saved, markInteractionService.findLikedMarkIds(controller.getId()), true, controller.getId());
     }
 
+    @Transactional
+    public RoadMarkDto submitWorkReport(
+            Long markId,
+            User controller,
+            String description,
+            MultipartFile[] photos,
+            HttpServletRequest request) {
+        requireApprovedController(controller);
+        RoadMark mark = getEntity(markId);
+        requireAssignedController(mark, controller.getId());
+
+        if (mark.getStatus() != MarkStatus.IN_PROGRESS) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Work report can only be submitted for marks in in_progress status");
+        }
+
+        List<String> storedPaths = new ArrayList<>();
+        if (photos != null) {
+            for (MultipartFile photo : photos) {
+                if (photo != null && !photo.isEmpty()) {
+                    storedPaths.add(fileStorageService.saveMarkWorkPhoto(markId, photo));
+                }
+            }
+        }
+
+        if ((description == null || description.isBlank()) && storedPaths.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "description or photos required");
+        }
+
+        if (description != null && !description.isBlank()) {
+            mark.setWorkReportDescription(description.trim());
+        }
+        if (!storedPaths.isEmpty()) {
+            mark.setWorkReportImagesJson(toImagesJson(storedPaths));
+        }
+        mark.setStatus(MarkStatus.FIXED);
+
+        RoadMark saved = roadMarkRepository.save(mark);
+        RoadMarkDto dto =
+                toDto(saved, markInteractionService.findLikedMarkIds(controller.getId()), true, controller.getId());
+        if (dto.getWorkReportImages() != null && !dto.getWorkReportImages().isEmpty()) {
+            dto.setWorkReportImages(dto.getWorkReportImages().stream()
+                    .map(path -> fileStorageService.resolvePublicUrl(path, request))
+                    .collect(Collectors.toList()));
+        }
+        return dto;
+    }
+
     private void acceptOrRejectPendingMark(
             RoadMark mark, User controller, MarkStatus targetStatus, StatusUpdateRequest request) {
         Long controllerId = controller.getId();
+        boolean accepting = targetStatus == MarkStatus.CONFIRMED || targetStatus == MarkStatus.CONTROLLER_ASSIGNED;
 
         if (mark.getAssignedControllerId() != null && !mark.getAssignedControllerId().equals(controllerId)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "Заявка уже принята другим контроллером");
         }
 
-        if (targetStatus == MarkStatus.CONFIRMED
-                && (mark.getStatus() == MarkStatus.CONFIRMED
-                        || mark.getStatus() == MarkStatus.IN_PROGRESS
-                        || mark.getStatus() == MarkStatus.FIXED)) {
-            if (mark.getAssignedControllerId() == null) {
-                mark.setAssignedControllerId(controllerId);
+        if (accepting && mark.getStatus() == MarkStatus.CONTROLLER_ASSIGNED) {
+            if (mark.getAssignedControllerId() != null && mark.getAssignedControllerId().equals(controllerId)) {
+                applyControllerComment(mark, MarkStatus.CONTROLLER_ASSIGNED, request);
+                return;
             }
+        }
+
+        if (accepting
+                && (mark.getStatus() == MarkStatus.IN_PROGRESS || mark.getStatus() == MarkStatus.FIXED)
+                && mark.getAssignedControllerId() != null
+                && mark.getAssignedControllerId().equals(controllerId)) {
             applyControllerComment(mark, targetStatus, request);
             return;
         }
@@ -275,20 +431,27 @@ public class RoadMarkService {
             return;
         }
 
+        if (accepting) {
+            if (mark.getStatus() != MarkStatus.CONFIRMED || mark.getAssignedControllerId() != null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Нельзя изменить статус: заявка не ожидает действия контроллера");
+            }
+            if (request.getAssignedControllerId() != null && !request.getAssignedControllerId().equals(controllerId)) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "Нельзя назначить заявку другому контроллеру");
+            }
+            mark.setStatus(MarkStatus.CONTROLLER_ASSIGNED);
+            mark.setAssignedControllerId(controllerId);
+            applyControllerComment(mark, MarkStatus.CONTROLLER_ASSIGNED, request);
+            return;
+        }
+
         if (mark.getStatus() != MarkStatus.CONFIRMED || mark.getAssignedControllerId() != null) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "Нельзя изменить статус: заявка не ожидает действия контроллера");
         }
 
-        if (request.getAssignedControllerId() != null && !request.getAssignedControllerId().equals(controllerId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "Нельзя назначить заявку другому контроллеру");
-        }
-
-        mark.setStatus(targetStatus);
-        if (targetStatus == MarkStatus.CONFIRMED) {
-            mark.setAssignedControllerId(controllerId);
-        }
+        mark.setStatus(MarkStatus.REJECTED);
         applyControllerComment(mark, targetStatus, request);
     }
 
@@ -297,7 +460,8 @@ public class RoadMarkService {
         if (comment != null) {
             mark.setControllerComment(comment);
         }
-        if (targetStatus == MarkStatus.CONFIRMED && mark.getAcceptedAt() == null) {
+        if ((targetStatus == MarkStatus.CONFIRMED || targetStatus == MarkStatus.CONTROLLER_ASSIGNED)
+                && mark.getAcceptedAt() == null) {
             mark.setAcceptedAt(Instant.now());
         }
     }
@@ -334,6 +498,10 @@ public class RoadMarkService {
             mark.setAssignedControllerId(controllerId);
         } else if (newStatus == MarkStatus.CONFIRMED) {
             mark.setAssignedControllerId(null);
+            mark.setAcceptedAt(null);
+            mark.setWorkStartedAt(null);
+        } else if (newStatus == MarkStatus.IN_PROGRESS && mark.getWorkStartedAt() == null) {
+            mark.setWorkStartedAt(Instant.now());
         }
 
         if (request.getAdminNote() != null) {
@@ -369,6 +537,7 @@ public class RoadMarkService {
                 "new", roadMarkRepository.countByStatus(MarkStatus.NEW),
                 "pending", roadMarkRepository.countByStatus(MarkStatus.PENDING),
                 "confirmed", roadMarkRepository.countByStatus(MarkStatus.CONFIRMED),
+                "controller_assigned", roadMarkRepository.countByStatus(MarkStatus.CONTROLLER_ASSIGNED),
                 "in_progress", roadMarkRepository.countByStatus(MarkStatus.IN_PROGRESS),
                 "fixed", roadMarkRepository.countByStatus(MarkStatus.FIXED),
                 "rejected", roadMarkRepository.countByStatus(MarkStatus.REJECTED));
