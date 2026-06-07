@@ -115,7 +115,13 @@ public class RoadMarkService {
                     .findByStatusOrderByAcceptedAtDesc(MarkStatus.CONTROLLER_ASSIGNED);
             case "in_progress_assigned" -> roadMarkRepository
                     .findByStatusAndAssignedControllerIdIsNotNullOrderByWorkStartedAtDesc(MarkStatus.IN_PROGRESS);
-            default -> roadMarkRepository.findByStatus(MarkStatus.fromValue(statusFilter));
+            default -> {
+                try {
+                    yield roadMarkRepository.findByStatus(MarkStatus.fromValue(statusFilter));
+                } catch (IllegalArgumentException ex) {
+                    yield roadMarkRepository.findAll();
+                }
+            }
         };
     }
 
@@ -166,15 +172,22 @@ public class RoadMarkService {
 
     public Map<Long, String> buildControllerLabels(List<RoadMark> marks) {
         Map<Long, String> labels = new HashMap<>();
+        if (marks == null) {
+            return labels;
+        }
         for (RoadMark mark : marks) {
             Long controllerId = mark.getAssignedControllerId();
             if (controllerId != null && !labels.containsKey(controllerId)) {
-                AssignedControllerDto controller = buildAssignedController(controllerId);
-                String company = controller.getCompanyName() != null ? controller.getCompanyName() : "—";
-                labels.put(
-                        controllerId,
-                        controller.getFullName() != null ? controller.getFullName() + " (" + company + ")"
-                                : "ID " + controllerId);
+                try {
+                    AssignedControllerDto controller = buildAssignedController(controllerId);
+                    String company = controller.getCompanyName() != null ? controller.getCompanyName() : "—";
+                    labels.put(
+                            controllerId,
+                            controller.getFullName() != null ? controller.getFullName() + " (" + company + ")"
+                                    : "ID " + controllerId);
+                } catch (Exception ex) {
+                    labels.put(controllerId, "ID " + controllerId);
+                }
             }
         }
         return labels;
