@@ -6,6 +6,9 @@
 <main class="container">
     <h1>Дашборд</h1>
 
+    <div th:if="${error}" class="alert" style="background:#ffebee;border:1px solid #e53935;padding:0.75rem;border-radius:6px;margin-bottom:1rem" th:text="${error}"></div>
+    <div th:if="${message}" class="alert" th:text="${message}"></div>
+
     <!-- Блок ожидающих проверки — выделен -->
     <a th:href="@{/admin/marks(status='new')}" style="text-decoration:none">
         <div class="stat-card" th:style="${stats['new'] > 0} ? 'border:2px solid #e53935;background:#fff5f5' : ''">
@@ -29,6 +32,10 @@
             <span class="stat-value" th:text="${stats['confirmed']}">0</span>
         </div>
         <div class="stat-card">
+            <span class="stat-label">Заявки контроллеров</span>
+            <span class="stat-value" th:text="${stats['controller_assigned']}">0</span>
+        </div>
+        <div class="stat-card">
             <span class="stat-label">В работе</span>
             <span class="stat-value" th:text="${stats['in_progress']}">0</span>
         </div>
@@ -48,6 +55,8 @@
 
     <p class="actions">
         <a class="btn primary" th:href="@{/admin/marks(status='new')}">Проверить заявки</a>
+        <a class="btn" th:href="@{/admin/mark-applications}">Заявки от компании</a>
+        <a class="btn" th:href="@{/admin/in-progress}">В работе</a>
         <a class="btn" th:href="@{/admin/marks}">Все отметки</a>
     </p>
 </main>

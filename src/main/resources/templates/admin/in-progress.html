@@ -26,7 +26,7 @@
             <td><a th:href="@{/admin/marks/{id}(id=${m.id})}" th:text="${m.title}">title</a></td>
             <td th:text="${m.address}">addr</td>
             <td th:text="${controllerLabels[m.assignedControllerId]} ?: '—'">company</td>
-            <td th:text="${m.workStartedAt != null ? #temporals.format(m.workStartedAt, 'dd.MM.yyyy HH:mm') : '—'}">date</td>
+            <td th:text="${m.workStartedAt != null ? #strings.replace(#strings.substring(m.workStartedAt.toString(), 0, 16), 'T', ' ') : '—'}">date</td>
             <td>
                 <a th:href="@{/admin/marks/{id}(id=${m.id})}">Открыть</a>
                 <form th:action="@{/admin/marks/{id}/status(id=${m.id})}" method="post" style="display:inline;margin-left:4px">

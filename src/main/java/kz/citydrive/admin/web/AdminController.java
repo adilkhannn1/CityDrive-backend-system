@@ -46,10 +46,17 @@ public class AdminController {
 
     @GetMapping("/marks")
     public String marks(@RequestParam(required = false) String status, Model model) {
-        List<RoadMark> marks = roadMarkService.findForAdminPanel(status);
-        model.addAttribute("marks", marks);
-        model.addAttribute("controllerLabels", roadMarkService.buildControllerLabels(marks));
-        model.addAttribute("statusFilter", status);
+        try {
+            List<RoadMark> marks = roadMarkService.findForAdminPanel(status);
+            model.addAttribute("marks", marks);
+            model.addAttribute("controllerLabels", roadMarkService.buildControllerLabels(marks));
+            model.addAttribute("statusFilter", status != null ? status : "");
+        } catch (Exception ex) {
+            model.addAttribute("marks", List.of());
+            model.addAttribute("controllerLabels", Map.of());
+            model.addAttribute("statusFilter", status != null ? status : "");
+            model.addAttribute("error", "Не удалось загрузить отметки: " + ex.getMessage());
+        }
         return "admin/marks";
     }
 

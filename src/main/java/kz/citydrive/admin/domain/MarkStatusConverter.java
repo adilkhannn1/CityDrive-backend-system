@@ -13,6 +13,13 @@ public class MarkStatusConverter implements AttributeConverter<MarkStatus, Strin
 
     @Override
     public MarkStatus convertToEntityAttribute(String dbData) {
-        return dbData == null ? MarkStatus.NEW : MarkStatus.fromValue(dbData);
+        if (dbData == null || dbData.isBlank()) {
+            return MarkStatus.NEW;
+        }
+        try {
+            return MarkStatus.fromValue(dbData);
+        } catch (IllegalArgumentException ex) {
+            return MarkStatus.NEW;
+        }
     }
 }

@@ -7,19 +7,20 @@
     <h1>Дорожные отметки</h1>
 
     <div th:if="${message}" class="alert" th:text="${message}"></div>
+    <div th:if="${error}" class="alert" style="background:#ffebee;border:1px solid #e53935;padding:0.75rem;border-radius:6px" th:text="${error}"></div>
 
     <form class="filters" method="get" th:action="@{/admin/marks}">
         <label>Статус</label>
         <select name="status">
             <option value="">Все</option>
-            <option value="new"         th:selected="${statusFilter == 'new'}">🔔 Ожидают проверки (new)</option>
-            <option value="available"   th:selected="${statusFilter == 'available'}">confirmed — ждут контроллера</option>
+            <option value="new" th:selected="${statusFilter == 'new'}">🔔 Ожидают проверки (new)</option>
+            <option value="available" th:selected="${statusFilter == 'available'}">confirmed — ждут контроллера</option>
             <option value="controller_assigned" th:selected="${statusFilter == 'controller_assigned'}">controller_assigned</option>
-            <option value="pending"     th:selected="${statusFilter == 'pending'}">pending</option>
-            <option value="confirmed"   th:selected="${statusFilter == 'confirmed'}">confirmed (все)</option>
+            <option value="pending" th:selected="${statusFilter == 'pending'}">pending</option>
+            <option value="confirmed" th:selected="${statusFilter == 'confirmed'}">confirmed (все)</option>
             <option value="in_progress" th:selected="${statusFilter == 'in_progress'}">in_progress</option>
-            <option value="fixed"       th:selected="${statusFilter == 'fixed'}">fixed</option>
-            <option value="rejected"    th:selected="${statusFilter == 'rejected'}">rejected</option>
+            <option value="fixed" th:selected="${statusFilter == 'fixed'}">fixed</option>
+            <option value="rejected" th:selected="${statusFilter == 'rejected'}">rejected</option>
         </select>
         <button type="submit" class="btn">Фильтр</button>
         <a class="btn" th:href="@{/admin/marks}">Сброс</a>
@@ -41,7 +42,8 @@
         </thead>
         <tbody>
         <tr th:each="m : ${marks}"
-            th:style="${m.status?.value == 'new'} ? 'background:#fff8e1' : ''">
+            th:with="st=${m.statusValue}, ctrlId=${m.assignedControllerId}, ctrlName=${ctrlId != null and controllerLabels != null ? controllerLabels[ctrlId] : null}"
+            th:style="${st == 'new'} ? 'background:#fff8e1' : ''">
             <td th:text="${m.id}">1</td>
             <td th:text="${m.title}">title</td>
             <td th:text="${m.address}">addr</td>
@@ -49,54 +51,36 @@
             <td>
                 <span th:switch="${m.severity}">
                     <span th:case="'critical'" style="color:#d32f2f;font-weight:bold">🔴 Крит.</span>
-                    <span th:case="'high'"     style="color:#e53935;font-weight:bold">🟠 Высокий</span>
-                    <span th:case="'medium'"   style="color:#f57c00;font-weight:bold">🟡 Средний</span>
-                    <span th:case="'low'"      style="color:#388e3c;font-weight:bold">🟢 Низкий</span>
-                    <span th:case="*"          th:text="${m.severity} ?: '—'"></span>
+                    <span th:case="'high'" style="color:#e53935;font-weight:bold">🟠 Высокий</span>
+                    <span th:case="'medium'" style="color:#f57c00;font-weight:bold">🟡 Средний</span>
+                    <span th:case="'low'" style="color:#388e3c;font-weight:bold">🟢 Низкий</span>
+                    <span th:case="*" th:text="${m.severity} ?: '—'"></span>
                 </span>
             </td>
             <td>
-                <span class="badge"
-                      th:text="${m.status?.value}"
-                      th:style="${m.status?.value == 'new'} ? 'background:#ff9800;color:#fff' :
-                                 (${m.status?.value == 'confirmed'} ? 'background:#4caf50;color:#fff' :
-                                 (${m.status?.value == 'rejected'} ? 'background:#f44336;color:#fff' : ''))">
-                </span>
+                <span class="badge" th:text="${st}"></span>
             </td>
             <td>
-                <span th:if="${m.assignedControllerId != null and m.status?.value == 'controller_assigned'}"
-                      th:text="${controllerLabels[m.assignedControllerId]} ?: ('ID ' + m.assignedControllerId)}">
-                </span>
-                <span th:if="${m.assignedControllerId != null and m.status?.value == 'in_progress'}"
-                      th:text="${controllerLabels[m.assignedControllerId]} ?: ('ID ' + m.assignedControllerId)}">
-                </span>
-                <span th:if="${m.assignedControllerId == null and m.status?.value == 'confirmed'}" style="color:#888">
-                    ждёт контроллера
-                </span>
-                <span th:if="${m.assignedControllerId == null and m.status?.value != 'confirmed'}">—</span>
-                <a th:if="${m.status?.value == 'controller_assigned'}"
-                   th:href="@{/admin/mark-applications}" style="margin-left:4px;font-size:0.85rem">→ заявки</a>
+                <span th:if="${ctrlId != null and (st == 'controller_assigned' or st == 'in_progress')}"
+                      th:text="${ctrlName != null ? ctrlName : ('ID ' + ctrlId)}"></span>
+                <span th:if="${ctrlId == null and st == 'confirmed'}" style="color:#888">ждёт контроллера</span>
+                <span th:if="${ctrlId == null and st != 'confirmed' and st != 'controller_assigned' and st != 'in_progress'}">—</span>
+                <a th:if="${st == 'controller_assigned'}" th:href="@{/admin/mark-applications}" style="margin-left:4px;font-size:0.85rem">→ заявки</a>
             </td>
             <td th:text="${m.author}">author</td>
             <td>
                 <a th:href="@{/admin/marks/{id}(id=${m.id})}">Открыть</a>
-
-                <!-- Быстрые кнопки только для новых заявок -->
-                <span th:if="${m.status?.value == 'new'}" style="margin-left:4px">
+                <span th:if="${st == 'new'}" style="margin-left:4px">
                     <form th:action="@{/admin/marks/{id}/status(id=${m.id})}" method="post" style="display:inline">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                         <input type="hidden" name="status" value="confirmed"/>
-                        <button type="submit" style="background:#4caf50;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">
-                            ✓ Принять
-                        </button>
+                        <button type="submit" style="background:#4caf50;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">✓ Принять</button>
                     </form>
                     <form th:action="@{/admin/marks/{id}/status(id=${m.id})}" method="post" style="display:inline">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                         <input type="hidden" name="status" value="rejected"/>
                         <button type="submit" style="background:#f44336;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer"
-                                onclick="return confirm('Отклонить заявку?')">
-                            ✗ Отклонить
-                        </button>
+                                onclick="return confirm('Отклонить заявку?')">✗ Отклонить</button>
                     </form>
                 </span>
             </td>

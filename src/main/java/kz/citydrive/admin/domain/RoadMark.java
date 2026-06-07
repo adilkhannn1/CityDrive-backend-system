@@ -155,6 +155,10 @@ public class RoadMark {
         return status;
     }
 
+    public String getStatusValue() {
+        return status != null ? status.getValue() : MarkStatus.NEW.getValue();
+    }
+
     public void setStatus(MarkStatus status) {
         this.status = status;
     }
