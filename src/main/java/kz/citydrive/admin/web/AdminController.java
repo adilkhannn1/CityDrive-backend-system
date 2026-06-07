@@ -73,6 +73,23 @@ public class AdminController {
         return "admin/mark-detail";
     }
 
+    @PostMapping("/marks/{id}/delete")
+    public String deleteMark(
+            @PathVariable Long id,
+            @RequestParam(required = false) String status,
+            RedirectAttributes redirectAttributes) {
+        try {
+            roadMarkService.delete(id);
+            redirectAttributes.addFlashAttribute("message", "Отметка #" + id + " удалена");
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+            redirectAttributes.addFlashAttribute("error", ex.getReason());
+        }
+        if (status != null && !status.isBlank()) {
+            return "redirect:/admin/marks?status=" + status;
+        }
+        return "redirect:/admin/marks";
+    }
+
     @PostMapping("/marks/{id}/status")
     public String updateMarkStatus(
             @PathVariable Long id,

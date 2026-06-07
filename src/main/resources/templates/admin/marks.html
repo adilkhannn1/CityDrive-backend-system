@@ -70,6 +70,12 @@
             <td th:text="${m.author}">author</td>
             <td>
                 <a th:href="@{/admin/marks/{id}(id=${m.id})}">Открыть</a>
+                <form th:action="@{/admin/marks/{id}/delete(id=${m.id})}" method="post" style="display:inline;margin-left:4px"
+                      th:attr="onsubmit=|return confirm('Удалить отметку #${m.id}?');|">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="hidden" name="status" th:value="${statusFilter}"/>
+                    <button type="submit" class="btn danger small">Удалить</button>
+                </form>
                 <span th:if="${st == 'new'}" style="margin-left:4px">
                     <form th:action="@{/admin/marks/{id}/status(id=${m.id})}" method="post" style="display:inline">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>

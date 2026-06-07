@@ -171,6 +171,16 @@
             </tbody>
         </table>
     </section>
+
+    <section class="card" style="margin-top:1.5rem;border-color:#ffcdd2">
+        <h2 style="color:#c62828">Опасная зона</h2>
+        <p style="color:#64748b;margin-top:0">Удаление необратимо: отметка, лайки и комментарии будут удалены.</p>
+        <form th:action="@{/admin/marks/{id}/delete(id=${mark.id})}" method="post" style="display:inline"
+              th:attr="onsubmit=|return confirm('Удалить отметку #${mark.id}?');|">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit" class="btn danger">Удалить отметку</button>
+        </form>
+    </section>
 </main>
 </body>
 </html>

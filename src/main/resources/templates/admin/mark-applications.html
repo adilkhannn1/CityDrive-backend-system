@@ -38,6 +38,11 @@
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                     <button type="submit" class="btn" onclick="return confirm('Снять контроллера и вернуть отметку в «Новые»?')">Отклонить</button>
                 </form>
+                <form th:action="@{/admin/marks/{id}/delete(id=${m.id})}" method="post" style="display:inline;margin-left:4px"
+                      th:attr="onsubmit=|return confirm('Удалить отметку #${m.id}?');|">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <button type="submit" class="btn danger small">Удалить</button>
+                </form>
             </td>
         </tr>
         <tr th:if="${#lists.isEmpty(marks)}">
