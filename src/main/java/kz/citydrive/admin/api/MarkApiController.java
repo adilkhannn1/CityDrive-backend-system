@@ -63,8 +63,9 @@ public class MarkApiController {
     }
 
     @GetMapping("/mine-for-controller")
-    public List<RoadMarkDto> mineForController(@AuthenticationPrincipal AdminUserDetails principal) {
-        return roadMarkService.findMineForControllerDtos(requirePrincipal(principal));
+    public List<RoadMarkDto> mineForController(
+            @AuthenticationPrincipal AdminUserDetails principal, HttpServletRequest request) {
+        return roadMarkService.findMineForControllerDtos(requirePrincipal(principal), request);
     }
 
     @GetMapping("/mine")
@@ -76,8 +77,13 @@ public class MarkApiController {
     }
 
     @GetMapping("/{id:\\d+}")
-    public RoadMarkDto get(@PathVariable Long id, @AuthenticationPrincipal AdminUserDetails principal) {
-        return roadMarkService.getDto(id, currentUserId(principal));
+    public RoadMarkDto get(
+            @PathVariable Long id,
+            @AuthenticationPrincipal AdminUserDetails principal,
+            HttpServletRequest request) {
+        Long userId = currentUserId(principal);
+        RoadMarkDto dto = roadMarkService.getDto(id, userId);
+        return roadMarkService.enrichDtoForApi(dto, roadMarkService.getEntity(id), request);
     }
 
     @PostMapping("/{markId:\\d+}/like")
@@ -165,17 +171,31 @@ public class MarkApiController {
     }
 
     @PostMapping(value = "/{id:\\d+}/work-report", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
-    public RoadMarkDto submitWorkReport(
+    public RoadMarkDto submitWorkReportMultipart(
             @PathVariable Long id,
             @RequestParam(required = false) String description,
+            @RequestParam(value = "images", required = false) MultipartFile[] images,
             @RequestParam(value = "photos", required = false) MultipartFile[] photos,
             @AuthenticationPrincipal AdminUserDetails principal,
             HttpServletRequest request) {
         User user = requirePrincipal(principal);
         if (user.getRole() != UserRole.CONTROLLER) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only controllers can submit work reports");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Недостаточно прав");
         }
-        return roadMarkService.submitWorkReport(id, user, description, photos, request);
+        return roadMarkService.submitWorkReport(id, user, description, images, photos, request);
+    }
+
+    @PostMapping(value = "/{id:\\d+}/work-report", consumes = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public RoadMarkDto submitWorkReportJson(
+            @PathVariable Long id,
+            @RequestBody kz.citydrive.admin.dto.WorkReportCreateRequest body,
+            @AuthenticationPrincipal AdminUserDetails principal,
+            HttpServletRequest request) {
+        User user = requirePrincipal(principal);
+        if (user.getRole() != UserRole.CONTROLLER) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Недостаточно прав");
+        }
+        return roadMarkService.submitWorkReportJson(id, user, body, request);
     }
 
     @DeleteMapping("/{id:\\d+}")

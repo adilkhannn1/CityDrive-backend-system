@@ -9,6 +9,7 @@ public enum MarkStatus {
     CONTROLLER_ASSIGNED("controller_assigned"),
     REJECTED("rejected"),
     IN_PROGRESS("in_progress"),
+    REPORT_SUBMITTED("report_submitted"),
     FIXED("fixed");
 
     private final String value;

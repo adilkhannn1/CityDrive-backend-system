@@ -71,6 +71,9 @@ public class RoadMark {
     @Column(name = "work_started_at")
     private Instant workStartedAt;
 
+    @Column(name = "work_report_submitted_at")
+    private Instant workReportSubmittedAt;
+
     public Long getId() {
         return id;
     }
@@ -249,5 +252,13 @@ public class RoadMark {
 
     public void setWorkStartedAt(Instant workStartedAt) {
         this.workStartedAt = workStartedAt;
+    }
+
+    public Instant getWorkReportSubmittedAt() {
+        return workReportSubmittedAt;
+    }
+
+    public void setWorkReportSubmittedAt(Instant workReportSubmittedAt) {
+        this.workReportSubmittedAt = workReportSubmittedAt;
     }
 }

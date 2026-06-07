@@ -16,6 +16,8 @@ public interface RoadMarkRepository extends JpaRepository<RoadMark, Long> {
 
     List<RoadMark> findByStatusOrderByAcceptedAtDesc(MarkStatus status);
 
+    List<RoadMark> findByStatusOrderByWorkReportSubmittedAtDesc(MarkStatus status);
+
     List<RoadMark> findByStatusAndAssignedControllerIdIsNotNullOrderByWorkStartedAtDesc(MarkStatus status);
 
     List<RoadMark> findByStatusAndAssignedControllerIdIsNullOrderByReportedDateDesc(MarkStatus status);

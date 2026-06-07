@@ -1,5 +1,6 @@
 package kz.citydrive.admin.api;
 
+import jakarta.servlet.http.HttpServletRequest;
 import kz.citydrive.admin.dto.ControllerDashboardDto;
 import kz.citydrive.admin.dto.RoadMarkDto;
 import kz.citydrive.admin.security.AdminUserDetails;
@@ -31,14 +32,16 @@ public class ControllerApiController {
             @RequestParam(required = false) String severity,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) Integer offset) {
+            @RequestParam(required = false) Integer offset,
+            HttpServletRequest request) {
         return roadMarkService.getControllerDashboard(
-                requirePrincipal(principal), q, severity, type, limit, offset);
+                requirePrincipal(principal), q, severity, type, limit, offset, request);
     }
 
     @GetMapping("/marks/mine")
-    public List<RoadMarkDto> myMarks(@AuthenticationPrincipal AdminUserDetails principal) {
-        return roadMarkService.findMineForControllerDtos(requirePrincipal(principal));
+    public List<RoadMarkDto> myMarks(
+            @AuthenticationPrincipal AdminUserDetails principal, HttpServletRequest request) {
+        return roadMarkService.findMineForControllerDtos(requirePrincipal(principal), request);
     }
 
     private kz.citydrive.admin.domain.User requirePrincipal(AdminUserDetails principal) {

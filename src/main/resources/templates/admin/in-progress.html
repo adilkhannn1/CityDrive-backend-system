@@ -29,12 +29,6 @@
             <td th:text="${m.workStartedAt != null ? #strings.replace(#strings.substring(m.workStartedAt.toString(), 0, 16), 'T', ' ') : '—'}">date</td>
             <td>
                 <a th:href="@{/admin/marks/{id}(id=${m.id})}">Открыть</a>
-                <form th:action="@{/admin/marks/{id}/status(id=${m.id})}" method="post" style="display:inline;margin-left:4px">
-                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-                    <input type="hidden" name="status" value="fixed"/>
-                    <input type="hidden" name="assignedControllerId" th:value="${m.assignedControllerId}"/>
-                    <button type="submit" class="btn">→ fixed</button>
-                </form>
                 <form th:action="@{/admin/marks/{id}/delete(id=${m.id})}" method="post" style="display:inline;margin-left:4px"
                       th:attr="onsubmit=|return confirm('Удалить отметку #${m.id}?');|">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>

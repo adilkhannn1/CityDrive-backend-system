@@ -43,13 +43,30 @@
         <a th:href="@{/admin/in-progress}" style="margin-left:0.5rem">→ раздел «В работе»</a>
     </div>
 
+    <div th:if="${mark.status?.value == 'report_submitted'}"
+         style="background:#fce4ec;border:1px solid #e91e63;border-radius:8px;padding:1rem;margin-bottom:1.5rem">
+        <strong>Отчёт отправлен — ожидает проверки админом.</strong>
+        <span th:text="${assignedControllerLabel}">Controller</span>
+        <a th:href="@{/admin/work-reports}" style="margin-left:0.5rem">→ раздел «Отчёты»</a>
+        <div style="margin-top:0.75rem;display:flex;gap:0.5rem">
+            <form th:action="@{/admin/work-reports/{id}/approve(id=${mark.id})}" method="post" style="display:inline">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <button type="submit" class="btn primary">Принять → fixed</button>
+            </form>
+            <form th:action="@{/admin/work-reports/{id}/reject(id=${mark.id})}" method="post" style="display:inline">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <button type="submit" class="btn" onclick="return confirm('Вернуть на доработку?')">Отклонить отчёт</button>
+            </form>
+        </div>
+    </div>
+
     <div th:if="${mark.status?.value == 'confirmed' and mark.assignedControllerId == null}"
          style="background:#e3f2fd;border:1px solid #2196f3;border-radius:8px;padding:1rem;margin-bottom:1.5rem">
         Отметка одобрена и доступна контроллерам в приложении («Новые»).
     </div>
-    <!-- Фотографии -->
+    <!-- Фотографии проблемы (до) -->
     <div th:if="${!#lists.isEmpty(images)}" style="margin-bottom:1.5rem">
-        <h2>Фотографии</h2>
+        <h2>Фотографии (до работ)</h2>
         <div style="display:flex;flex-wrap:wrap;gap:12px">
             <a th:each="img : ${images}"
                th:href="${img}" target="_blank"
@@ -60,7 +77,20 @@
             </a>
         </div>
     </div>
-    <p th:if="${#lists.isEmpty(images)}" style="color:#888;margin-bottom:1.5rem">Фотографии не прикреплены</p>
+    <p th:if="${#lists.isEmpty(images)}" style="color:#888;margin-bottom:1.5rem">Фотографии проблемы не прикреплены</p>
+
+    <div th:if="${workReportImages != null and !#lists.isEmpty(workReportImages)}" style="margin-bottom:1.5rem">
+        <h2>Фотографии выполненной работы (после)</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:12px">
+            <a th:each="img : ${workReportImages}"
+               th:href="${img}" target="_blank"
+               style="display:block">
+                <img th:src="${img}"
+                     style="width:220px;height:160px;object-fit:cover;border-radius:8px;border:1px solid #ddd;cursor:pointer"
+                     onerror="this.style.display='none'"/>
+            </a>
+        </div>
+    </div>
 
     <div class="detail-grid">
         <section class="card">
@@ -91,6 +121,8 @@
                 <dd th:text="${assignedControllerLabel} ?: '—'"></dd>
                 <dt>Комментарий контроллера</dt><dd th:text="${mark.controllerComment} ?: '—'"></dd>
                 <dt>Отчёт о работе</dt><dd th:text="${mark.workReportDescription} ?: '—'"></dd>
+                <dt>Отчёт отправлен</dt>
+                <dd th:text="${mark.workReportSubmittedAt != null ? #strings.replace(#strings.substring(mark.workReportSubmittedAt.toString(), 0, 16), 'T', ' ') : '—'}"></dd>
             </dl>
         </section>
         <section class="card">

@@ -1,5 +1,7 @@
 package kz.citydrive.admin.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class ControllerDashboardStatsDto {
 
     private long newCount;
@@ -7,11 +9,16 @@ public class ControllerDashboardStatsDto {
     private long inWorkCount;
     private long doneCount;
 
-    public ControllerDashboardStatsDto(long newCount, long applicationsCount, long inWorkCount, long doneCount) {
+    @JsonProperty("pending_review_count")
+    private long pendingReviewCount;
+
+    public ControllerDashboardStatsDto(
+            long newCount, long applicationsCount, long inWorkCount, long doneCount, long pendingReviewCount) {
         this.newCount = newCount;
         this.applicationsCount = applicationsCount;
         this.inWorkCount = inWorkCount;
         this.doneCount = doneCount;
+        this.pendingReviewCount = pendingReviewCount;
     }
 
     public long getNewCount() {
@@ -44,5 +51,13 @@ public class ControllerDashboardStatsDto {
 
     public void setDoneCount(long doneCount) {
         this.doneCount = doneCount;
+    }
+
+    public long getPendingReviewCount() {
+        return pendingReviewCount;
+    }
+
+    public void setPendingReviewCount(long pendingReviewCount) {
+        this.pendingReviewCount = pendingReviewCount;
     }
 }

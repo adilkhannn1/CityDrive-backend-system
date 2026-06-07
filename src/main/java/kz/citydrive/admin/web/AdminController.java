@@ -66,6 +66,7 @@ public class AdminController {
         RoadMarkDto dto = roadMarkService.getDto(id, null);
         model.addAttribute("mark", mark);
         model.addAttribute("images", dto.getImages());
+        model.addAttribute("workReportImages", dto.getWorkReportImages());
         model.addAttribute("assignedControllerLabel", roadMarkService.describeAssignedController(mark.getAssignedControllerId()));
         model.addAttribute("controllers", userService.findControllers());
         model.addAttribute("comments", markInteractionService.findAllCommentsForAdmin(id));
@@ -137,6 +138,31 @@ public class AdminController {
         model.addAttribute("marks", marks);
         model.addAttribute("controllerLabels", roadMarkService.buildControllerLabels(marks));
         return "admin/in-progress";
+    }
+
+    @GetMapping("/work-reports")
+    public String workReports(Model model) {
+        List<RoadMark> marks = roadMarkService.findWorkReportEntities();
+        model.addAttribute("marks", marks);
+        model.addAttribute("controllerLabels", roadMarkService.buildControllerLabels(marks));
+        return "admin/work-reports";
+    }
+
+    @PostMapping("/work-reports/{id}/approve")
+    public String approveWorkReport(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        roadMarkService.approveWorkReport(id);
+        redirectAttributes.addFlashAttribute("message", "Отчёт принят, отметка переведена в fixed");
+        return "redirect:/admin/work-reports";
+    }
+
+    @PostMapping("/work-reports/{id}/reject")
+    public String rejectWorkReport(
+            @PathVariable Long id,
+            @RequestParam(required = false) String adminNote,
+            RedirectAttributes redirectAttributes) {
+        roadMarkService.rejectWorkReport(id, adminNote);
+        redirectAttributes.addFlashAttribute("message", "Отчёт отклонён, контроллер может отправить заново");
+        return "redirect:/admin/work-reports";
     }
 
     @GetMapping("/users")
